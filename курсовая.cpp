@@ -28,7 +28,7 @@ vec_function ans(double nu, double E) {
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
         const double& x = p.x, & y = p.y;
 
-        //      x2      y2      x       y       c
+        //     x2      y2      x       y          c
         double a1 = 0, a3 = 0, a4 = 0, a5 = 1.23, a6 = 0;
         double b1 = 0, b3 = 0, b4 = 1.23, b5 = 0, b6 = 0;
 
