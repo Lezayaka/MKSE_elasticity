@@ -81,7 +81,9 @@ void FSEM::construct_basis() {
 
 			return Point{ 0, 0 };
 		});
+
 	fem.construct_AF(E, nu, zero);
+	auto [A, F] = fem.get_AF();
 	fem.apply_boundaries();
 	
 	basis[0] = fem.solve();
@@ -107,7 +109,7 @@ void FSEM::construct_basis() {
 
 			return Point{ 0, 0 };
 		});
-	fem.construct_AF(E, nu, zero);
+	fem.set_AF(A, F);
 	fem.apply_boundaries();
 
 	basis[1] = fem.solve();
@@ -136,7 +138,7 @@ void FSEM::construct_basis() {
 	fem.set_boundaries('E', zero);
 	fem.set_boundaries('S', zero);
 
-	fem.construct_AF(E, nu, zero);
+	fem.set_AF(A, F);
 	fem.apply_boundaries();
 	basis[2 * n_side_y] = fem.solve();
 
@@ -162,7 +164,7 @@ void FSEM::construct_basis() {
 	fem.set_boundaries('E', zero);
 	fem.set_boundaries('S', zero);
 
-	fem.construct_AF(E, nu, zero);
+	fem.set_AF(A, F);
 	fem.apply_boundaries();
 	basis[2 * n_side_y + 1] = fem.solve();
 
@@ -189,8 +191,8 @@ void FSEM::construct_basis() {
 			return Point{ 0, 0 };
 		});
 	fem.set_boundaries('S', zero);
-
-	fem.construct_AF(E, nu, zero);
+	
+	fem.set_AF(A, F);
 	fem.apply_boundaries();
 	basis[2 * (n_side_x + n_side_y)] = fem.solve();
 	
@@ -216,7 +218,7 @@ void FSEM::construct_basis() {
 		});
 	fem.set_boundaries('S', zero);
 
-	fem.construct_AF(E, nu, zero);
+	fem.set_AF(A, F);
 	fem.apply_boundaries();
 	basis[2 * (n_side_x + n_side_y) + 1] = fem.solve();
 	
@@ -244,7 +246,7 @@ void FSEM::construct_basis() {
 			return Point{ 0, 0 };
 		});
 
-	fem.construct_AF(E, nu, zero);
+	fem.set_AF(A, F);
 	fem.apply_boundaries();
 	basis[2 * (n_side_x + 2 * n_side_y)] = fem.solve();
 	
@@ -270,7 +272,7 @@ void FSEM::construct_basis() {
 			return Point{ 0, 0 };
 		});
 
-	fem.construct_AF(E, nu, zero);
+	fem.set_AF(A, F);
 	fem.apply_boundaries();
 	basis[2 * (n_side_x + 2 * n_side_y) + 1] = fem.solve();
 	
@@ -300,7 +302,7 @@ void FSEM::construct_basis() {
 		fem.set_boundaries('E', zero);
 		fem.set_boundaries('S', zero);
 
-		fem.construct_AF(E, nu, zero);
+		fem.set_AF(A, F);
 		fem.apply_boundaries();
 		basis[2 * i] = fem.solve();
 		
@@ -324,7 +326,7 @@ void FSEM::construct_basis() {
 		fem.set_boundaries('E', zero);
 		fem.set_boundaries('S', zero);
 
-		fem.construct_AF(E, nu, zero);
+		fem.set_AF(A, F);
 		fem.apply_boundaries();
 		basis[2 * i + 1] = fem.solve();
 		
@@ -350,7 +352,7 @@ void FSEM::construct_basis() {
 			});
 		fem.set_boundaries('S', zero);
 
-		fem.construct_AF(E, nu, zero);
+		fem.set_AF(A, F);
 		fem.apply_boundaries();
 		basis[2 * (n_side_x + n_side_y + i)] = fem.solve();
 		
@@ -374,7 +376,7 @@ void FSEM::construct_basis() {
 			});
 		fem.set_boundaries('S', zero);
 
-		fem.construct_AF(E, nu, zero);
+		fem.set_AF(A, F);
 		fem.apply_boundaries();
 		basis[2 * (n_side_x + n_side_y + i) + 1] = fem.solve();
 	}
@@ -405,7 +407,7 @@ void FSEM::construct_basis() {
 		fem.set_boundaries('E', zero);
 		fem.set_boundaries('S', zero);
 
-		fem.construct_AF(E, nu, zero);
+		fem.set_AF(A, F);
 		fem.apply_boundaries();
 		basis[2 * (n_side_y + i)] = fem.solve();
 		
@@ -429,7 +431,7 @@ void FSEM::construct_basis() {
 		fem.set_boundaries('E', zero);
 		fem.set_boundaries('S', zero);
 
-		fem.construct_AF(E, nu, zero);
+		fem.set_AF(A, F);
 		fem.apply_boundaries();
 		basis[2 * (n_side_y + i) + 1] = fem.solve();
 		
@@ -455,7 +457,7 @@ void FSEM::construct_basis() {
 				return Point{ 0, 0 };
 			});
 
-		fem.construct_AF(E, nu, zero);
+		fem.set_AF(A, F);
 		fem.apply_boundaries();
 		basis[2 * (2 * n_side_y + n_side_x + i)] = fem.solve();
 		
@@ -479,7 +481,7 @@ void FSEM::construct_basis() {
 				return Point{ 0, 0 };
 			});
 
-		fem.construct_AF(E, nu, zero);
+		fem.set_AF(A, F);
 		fem.apply_boundaries();
 		basis[2 * (2 * n_side_y + n_side_x + i) + 1] = fem.solve();
 		
@@ -505,36 +507,47 @@ void FSEM::set_bc1(char side, const vec_function& g) {
 }
 
 void FSEM::calculate_coef_Matrix_bc2(const int finish, const int i,
-	bool cur_pos, bool prev_pos, int& add_B, int& add_C, const int add_basis, Matrix& B,
-	Matrix& C) {
+	bool is_cur_Neumann, bool is_prev_Neumann, int& add_N, int& add_D, const int add_basis, Matrix& N,
+	Matrix& D) {
 
-	for (int j = 0; j < finish; j++) {
-		if (cur_pos) {
-			if ((j == 0 || j == 1) && !prev_pos) {
-				C[2 * i][j + add_C] = basis[j + add_basis][i].x;
-				C[2 * i + 1][j + add_C] = basis[j + add_basis][i].y;
-				add_B -= 1;
-				continue;
-			}
+	// обработка первой точки на данной границе
+	if (is_cur_Neumann && is_prev_Neumann) {
+		N[2 * i][add_N] = basis[add_basis][i].x;
+		N[2 * i + 1][add_N] = basis[add_basis][i].y;
 
-			B[2 * i][j + add_B] = basis[j + add_basis][i].x;
-			
-			B[2 * i + 1][j + add_B] = basis[j + add_basis][i].y;
+		N[2 * i][1 + add_N] = basis[1 + add_basis][i].x;
+		N[2 * i + 1][1 + add_N] = basis[1 + add_basis][i].y;
+	}
+	else {
+		D[2 * i][add_D] = basis[add_basis][i].x;
+		D[2 * i + 1][add_D] = basis[add_basis][i].y;
+
+		D[2 * i][1 + add_D] = basis[1 + add_basis][i].x;
+		D[2 * i + 1][1 + add_D] = basis[1 + add_basis][i].y;
+	}
+
+	if (is_cur_Neumann && !is_prev_Neumann)
+		add_N -= 2;
+
+	for (int j = 2; j < finish; j++) {
+		if (is_cur_Neumann) {
+			N[2 * i][j + add_N] = basis[j + add_basis][i].x;
+			N[2 * i + 1][j + add_N] = basis[j + add_basis][i].y;
 		}
-		
 		else {
-			C[2 * i][j + add_C] = basis[j + add_basis][i].x;
-			C[2 * i + 1][j + add_C] = basis[j + add_basis][i].y;
+			D[2 * i][j + add_D] = basis[j + add_basis][i].x;
+			D[2 * i + 1][j + add_D] = basis[j + add_basis][i].y;
 		}
 	}
-	if (cur_pos) {
-		add_B += finish;
-		if (!prev_pos)
-			add_C += 2;
-	}
 
-	if (!cur_pos)
-		add_C += finish;
+	if (is_cur_Neumann) {
+		add_N += finish;
+		if (!is_prev_Neumann) {
+			add_D += 2;
+		}
+	}
+	else
+		add_D += finish;
 }
 
 void FSEM::save_bc1(std::vector<double>& coefs_Dirichle, int& dir_id, const int i) {
@@ -548,7 +561,7 @@ void FSEM::set_bc2(const std::vector<size_t>& pos,
 	const std::vector<vec_function>& g) {
 
 	fem.construct_AF(E, nu, zero);
-	Matrix K = fem.A; // матрица жесткости
+	auto K  = fem.get_AF().first; // матрица жесткости
 	
 	size_t n_known_coefs = 0;
 	if (!pos[0]) n_known_coefs += n_side_y + 1;
@@ -565,11 +578,11 @@ void FSEM::set_bc2(const std::vector<size_t>& pos,
 	
 	// столбцы - значения суперэлементов, соответствующих
 	// неизвестным коэффициентам, в узлах мкэ сетки
-	Matrix B(K.size(), n_unknown_coefs);
+	Matrix N(K.size(), n_unknown_coefs);
 
 	// столбцы - значения суперэлементов, соответствующих
 	// известным коэффициентам, в узлах мкэ сетки
-	Matrix C(K.size(), 2 * n_known_coefs);
+	Matrix D(K.size(), 2 * n_known_coefs);
 
 	// интегралы от ГУ 2 рода * функции формы мкэ
 	std::vector<double> p_vec(K.size(), 0.0);
@@ -578,28 +591,29 @@ void FSEM::set_bc2(const std::vector<size_t>& pos,
 	
 	// находим B и C
 	for (size_t i = 0; i < fem.psize(); i++) {
-		int add_B = 0, add_C = 0, add_basis = 0;
+		int add_N = 0, add_D = 0, add_basis = 0;
 
 		for (size_t j = 0; j < 4; ++j) {
 			if (j == 0)
 				prev_pos = 3;
 			else
 				prev_pos = j - 1;
+
 			if (j == 0 || j == 2)
 				finish = 2 * n_side_y;
 			else
 				finish = 2 * n_side_x;
 
-			calculate_coef_Matrix_bc2(finish, i, pos[j], pos[prev_pos], add_B, add_C, add_basis, B, C);
+			calculate_coef_Matrix_bc2(finish, i, pos[j], pos[prev_pos], add_N, add_D, add_basis, N, D);
 			add_basis += finish;
 		}
 	}
-
+	
 	fem.calculate_bc2(pos, g, p_vec);
 	
-	Matrix B_Transposed = B.T();
+	Matrix N_Transposed = N.T();
 
-	Matrix A = B_Transposed.dot(K).dot(B);
+	Matrix A = N_Transposed.dot(K).dot(N);
 
 	// сохрвняем известные коэффициенты из ГУ Дирихле
 	std::vector<double> coefs_Dirichle(2 * n_known_coefs);
@@ -639,9 +653,9 @@ void FSEM::set_bc2(const std::vector<size_t>& pos,
 	
 	std::vector<double> f;
 	if (pos[0] + pos[1] + pos[2] + pos[3] == 4)
-		f = B_Transposed.dot(p_vec);
+		f = N_Transposed.dot(p_vec);
 	else
-		f = B_Transposed.dot(p_vec) - B_Transposed.dot(K).dot(C).dot(coefs_Dirichle);
+		f = N_Transposed.dot(p_vec) - N_Transposed.dot(K).dot(D).dot(coefs_Dirichle);
 
 	auto [L, U] = LU_decomposition(A);
 	std::vector<double> ans = solveLU(L, U, f);
@@ -680,6 +694,7 @@ void FSEM::set_bc2(const std::vector<size_t>& pos,
 			ans_id += 2;
 		}
 	}
+
 }
 
 std::vector<Point> FSEM::find_answer() {

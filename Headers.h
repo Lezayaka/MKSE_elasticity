@@ -41,6 +41,7 @@ public:
 	Matrix(size_t n, double a = 0);
 	Matrix(size_t n, size_t m, double a = 0);
 	Matrix(std::vector<std::vector<double>> m) : matrix(m) {};
+	Matrix(Matrix* M) { matrix = M->matrix; };
 
 	std::vector<double>& operator[](size_t i) { return matrix[i]; };
 	const std::vector<double>& operator[](size_t i) const { return matrix[i]; };
@@ -70,9 +71,9 @@ class FEM {
 	std::vector<Point> u;
 	
 	std::vector<double> F;
+	Matrix A;
 
 public:
-	Matrix A;
 	// значение решения в узле
 	FEM(const Point& a, const Point& b, size_t n, size_t m);
 
@@ -106,7 +107,7 @@ public:
 	void apply_boundaries();
 	std::vector<Point> solve();
 
-	void clear_AF();
+	void clear_AFu();
 
 	void bc2_side(lambda_func j, int start, int finish, double len, 
 		int side, bool prev_side, bool next_side,
@@ -114,6 +115,9 @@ public:
 
 	void calculate_bc2(const std::vector<size_t>& pos,
 		const std::vector<vec_function>& g, std::vector<double>& p_vec);
+
+	std::pair<Matrix, std::vector<double>> get_AF();
+	void set_AF(const Matrix& A_new, const std::vector<double>& F_new);
 };
 
 Matrix operator*(double a, Matrix m);

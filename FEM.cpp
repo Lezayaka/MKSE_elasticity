@@ -231,12 +231,12 @@ std::vector<Point> FEM::solve() {
 		res[i].y = u[2 * i + 1];
 	}
 
-	clear_AF();
+	clear_AFu();
 
 	return res;
 }
 
-void FEM::clear_AF() {
+void FEM::clear_AFu() {
 	for (size_t i = 0; i < 2 * psize(); ++i) {
 		F[i] = 0;
 		if (i % 2 == 0)
@@ -244,6 +244,15 @@ void FEM::clear_AF() {
 		for (size_t j = 0; j < 2 * psize(); ++j)
 			A[i][j] = 0;
 	}
+}
+
+std::pair<Matrix, std::vector<double>> FEM::get_AF() {
+	return { A, F };
+}
+
+void FEM::set_AF(const Matrix& A_new, const std::vector<double>& F_new) {
+	A = A_new;
+	F = F_new;
 }
 
 void FEM::bc2_side(lambda_func j, int start, int finish, double len,
