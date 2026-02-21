@@ -14,7 +14,10 @@ FSEM::FSEM(double E, double nu, const Point& a, const Point& b,
 	size_t n_x, size_t n_y, int coef_x, int coef_y) :
 	a(a), b(b), E(E), nu(nu), n_side_x(n_x - 1),
 	n_side_y(n_y - 1), 
-	fem(a, b, (n_y - 1)* coef_y + 1, (n_x - 1)* coef_x + 1) {
+	fem(a, b, (n_y - 1)* coef_y + 1, (n_x - 1)* coef_x + 1),
+	K((coef_x * (n_x - 1) + 1) * (coef_y * (n_y - 1) + 1)),
+	f((coef_x * (n_x - 1) + 1) * (coef_y* (n_y - 1) + 1))
+	{
 
 	double h_x = (b.x - a.x) / n_side_x, h_y = (b.y - a.y) / n_side_y; // шаг
 	
@@ -486,6 +489,27 @@ void FSEM::construct_basis() {
 		basis[2 * (2 * n_side_y + n_side_x + i) + 1] = fem.solve();
 		
 	}
+
+	Matrix W = matrix_form_basis();
+	K = W.T().dot(A).dot(W);
+}
+
+Matrix FSEM::matrix_form_basis() {
+	Matrix W(2 * basis[0].size(), basis.size());
+	for (size_t i = 0; i < basis[0].size(); ++i)
+		for (size_t j = 0; j < basis.size(); ++j) {
+			W[2 * i][j] = basis[j][i].x;
+			W[2 * i + 1][j] = basis[j][i].y;
+		}
+	return W;
+}
+
+void FSEM::construct_f_bc2(const std::vector<size_t>& pos,
+	const std::vector<vec_function>& g) {
+	Matrix W = matrix_form_basis();
+	std::vector<double> p_vec(W.size(), 0.0);
+	fem.calculate_bc2(pos, g, p_vec);
+	f = W.T().dot(p_vec);
 }
 
 void FSEM::set_bc1(char side, const vec_function& g) {
@@ -561,7 +585,7 @@ void FSEM::set_bc2(const std::vector<size_t>& pos,
 	const std::vector<vec_function>& g) {
 
 	fem.construct_AF(E, nu, zero);
-	auto K  = fem.get_AF().first; // матрица жесткости
+	auto K_fem  = fem.get_AF().first; // матрица жесткости
 	
 	size_t n_known_coefs = 0;
 	if (!pos[0]) n_known_coefs += n_side_y + 1;
@@ -578,14 +602,14 @@ void FSEM::set_bc2(const std::vector<size_t>& pos,
 	
 	// столбцы - значения суперэлементов, соответствующих
 	// неизвестным коэффициентам, в узлах мкэ сетки
-	Matrix N(K.size(), n_unknown_coefs);
+	Matrix N(K_fem.size(), n_unknown_coefs);
 
 	// столбцы - значения суперэлементов, соответствующих
 	// известным коэффициентам, в узлах мкэ сетки
-	Matrix D(K.size(), 2 * n_known_coefs);
+	Matrix D(K_fem.size(), 2 * n_known_coefs);
 
 	// интегралы от ГУ 2 рода * функции формы мкэ
-	std::vector<double> p_vec(K.size(), 0.0);
+	std::vector<double> p_vec(K_fem.size(), 0.0);
 
 	int finish = 0, prev_pos = 0;
 	
@@ -613,7 +637,7 @@ void FSEM::set_bc2(const std::vector<size_t>& pos,
 	
 	Matrix N_Transposed = N.T();
 
-	Matrix A = N_Transposed.dot(K).dot(N);
+	Matrix A = N_Transposed.dot(K_fem).dot(N);
 
 	// сохрвняем известные коэффициенты из ГУ Дирихле
 	std::vector<double> coefs_Dirichle(2 * n_known_coefs);
@@ -651,14 +675,14 @@ void FSEM::set_bc2(const std::vector<size_t>& pos,
 		for (int i = n_side_x + 2 * n_side_y; i < 2 * (n_side_x + n_side_y); ++i) 
 			save_bc1(coefs_Dirichle, dir_id, i);
 	
-	std::vector<double> f;
+	std::vector<double> f_fem;
 	if (pos[0] + pos[1] + pos[2] + pos[3] == 4)
-		f = N_Transposed.dot(p_vec);
+		f_fem = N_Transposed.dot(p_vec);
 	else
-		f = N_Transposed.dot(p_vec) - N_Transposed.dot(K).dot(D).dot(coefs_Dirichle);
+		f_fem = N_Transposed.dot(p_vec) - N_Transposed.dot(K_fem).dot(D).dot(coefs_Dirichle);
 
 	auto [L, U] = LU_decomposition(A);
-	std::vector<double> ans = solveLU(L, U, f);
+	std::vector<double> ans = solveLU(L, U, f_fem);
 	
 	int ans_id = 0;
 	if (pos[0])

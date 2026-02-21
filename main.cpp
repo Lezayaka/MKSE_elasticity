@@ -82,6 +82,25 @@ int main()
         return Point{-2 * 1.23 * mu, 0}; }
         });
 
+    fsem.construct_f_bc2({ 0, 1, 1, 0 }, {
+        zero,
+
+        [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        return Point{0, lambda * 5 - 10 * mu}; },
+
+        [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        return Point{lambda * 5 + 2 * mu * 10, 0}; },
+
+        [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        return Point{-2 * 1.23 * mu, 0}; }
+        });
+
     auto res = fsem.find_answer();
 
    for (size_t i = 0; i != res.size(); ++i) {

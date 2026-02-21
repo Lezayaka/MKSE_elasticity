@@ -147,6 +147,9 @@ class FSEM {
 	// коэффициенты
 	std::vector<Point> basis_coefficients;
 
+	Matrix K; // матрица жесткости
+	std::vector<double> f;
+
 public:
 	FEM fem;
 
@@ -166,9 +169,13 @@ public:
 
 	void construct_basis();
 
-	//void find_coefficients(const vec_function& g);
+	Matrix matrix_form_basis();
 
-	std::vector<Point> find_answer(const vec_function& g);
+	// интегралы от ГУ 2 рода * функции формы мкэ
+	void construct_f_bc2(const std::vector<size_t>& pos,
+		const std::vector<vec_function>& g);
+
+	//void find_coefficients(const vec_function& g);
 	std::vector<Point> find_answer();
 
 	// +-N-+ ♡♡♡♡♡♡♡♡♡♡♡♡

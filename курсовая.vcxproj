@@ -134,7 +134,7 @@
     <ClCompile Include="FEM.cpp" />
     <ClCompile Include="FSEM.cpp" />
     <ClCompile Include="Matrixes.cpp" />
-    <ClCompile Include="курсовая.cpp" />
+    <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Headers.h" />
