@@ -29,8 +29,8 @@ vec_function ans(double nu, double E) {
         const double& x = p.x, & y = p.y;
 
         //     x2      y2      x        y        c
-        double a1 = 0, a3 = 0, a4 = 10, a5 = 0,  a6 = 0;
-        double b1 = 0, b3 = 0, b4 = 0,  b5 = -5, b6 = 0;
+        double a1 = 0, a3 = 0, a4 = 0, a5 = 0,  a6 = 5;
+        double b1 = 0, b3 = 0, b4 = 0,  b5 = 0, b6 = 1;
 
         double a2 = -(2 * mu * b1 + (4 * mu + 2 * lambda) * b3) / (lambda + mu),
             b2 = -(2 * mu * a3 + (4 * mu + 2 * lambda) * a1) / (lambda + mu);
@@ -43,81 +43,57 @@ vec_function ans(double nu, double E) {
 }
 
 
-int main()
-{
-    // Задаем условия задачи
-    double E = 21e+10; // модуль Юнга
-    double nu = 0.3; // коэффициент Пуассона
-    Point a = { 0, 0 }, b = { 4, 2 }; // границы сетки
-    size_t n_x = 4, n_y = 3; // количество узлов на границах области
+int main() {
+    double E = 21e+10;
+    double nu = 0.3;
+
+    Point bottom_a = { 0, 0 }, bottom_b = { 4, 2 };
+    Point top_a = { 0, 2 }, top_b = { 4, 4 };
+
+    size_t n_x = 3, n_y = 3;
+
+    FSEM bottom(E, nu, bottom_a, bottom_b, n_x, n_y);
+    FSEM top(E, nu, top_a, top_b, n_x, n_y);
+
+    bottom.construct_basis();
+    top.construct_basis();
+
+    // Нижнее тело: фиксируем низ, остальные стороны свободны.
+    bottom.set_bc1('S', ans(nu, E));
+    bottom.set_bc1('W', ans(nu, E));
+    bottom.set_bc1('E', ans(nu, E));
+
+    // Верхнее тело: задаем внешнюю нагрузку сверху.
+    top.set_bc1('W', ans(nu, E));
+    top.set_bc1('N', ans(nu, E));
+    top.set_bc1('E', ans(nu, E));
+
+    std::vector<double> rhs_bottom = bottom.get_f();
+    std::vector<double> rhs_top = top.get_f();
+    
+   std::vector<double> solution = solve_mortar_contact(bottom, top, rhs_bottom, rhs_top);
+   
+    const size_t n1 = bottom.get_K().size();
+    const size_t n2 = top.get_K().size();
+    
+    std::cout << "Unknowns: u1=" << n1 / 2
+        << " nodes, u2=" << n2 / 2
+        << " nodes, lambda=" << (solution.size() - n1 - n2)
+        << " nodes\n";
+
     auto ANS = ans(nu, E);
 
-    FSEM fsem(E, nu, a, b, n_x, n_y); // строим сетку на границе области
-    
-    //std::cout << "Nodes:\n";
-    //fsem.print_nodes();
-    fsem.construct_basis();
-    
-    fsem.set_bc1('W', ans(nu, E));
-    //fsem.set_bc1('N', ans(nu, E));
-    //fsem.set_bc1('E', ans(nu, E));
-    fsem.set_bc1('S', ans(nu, E));
+    auto res_bottom = bottom.find_answer(solution);
 
-    fsem.set_bc2({ 0, 1, 1, 0 }, {
-        zero, 
+    std::cout << "\nu_bottom solution:\n";
+    for (size_t i = 0; i != res_bottom.size(); ++i)
+        std::cout << i << ": " << res_bottom[i] << '\t' << ANS((bottom.fem)[i]) << '\n';
 
-        [&](const Point& p) {
-        double mu = E / (2 * (1 + nu));
-        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{0, lambda * 5 - 10 * mu}; },
+    auto res_top = top.find_answer(solution, n1);
 
-        [&](const Point& p) {
-        double mu = E / (2 * (1 + nu));
-        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{lambda * 5 + 2 * mu * 10, 0}; },
+    std::cout << "\nu_top solution:\n";
+    for (size_t i = 0; i != res_top.size(); ++i)
+        std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';
 
-        [&](const Point& p) {
-        double mu = E / (2 * (1 + nu));
-        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{-2 * 1.23 * mu, 0}; }
-        });
-
-    fsem.construct_f_bc2({ 0, 1, 1, 0 }, {
-        zero,
-
-        [&](const Point& p) {
-        double mu = E / (2 * (1 + nu));
-        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{0, lambda * 5 - 10 * mu}; },
-
-        [&](const Point& p) {
-        double mu = E / (2 * (1 + nu));
-        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{lambda * 5 + 2 * mu * 10, 0}; },
-
-        [&](const Point& p) {
-        double mu = E / (2 * (1 + nu));
-        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{-2 * 1.23 * mu, 0}; }
-        });
-
-    auto res = fsem.find_answer();
-
-   for (size_t i = 0; i != res.size(); ++i) {
-        std::cout << res[i] << '\t' << ANS((fsem.fem)[i]) << '\n';
-    }
-
-    // Расчет и вывод нормы ошибки
-    double max_x = 0, max_y = 0;
-    
-    for (size_t i = 0; i != res.size(); ++i) {
-        Point U = ANS((fsem.fem)[i]);
-        if (fabs(U.x) > 1e-15 and max_x < abs((U.x - res[i].x) / U.x))
-            max_x = abs((U.x - res[i].x) / U.x);
-        if (fabs(U.y) > 1e-15 and max_y < abs((U.y - res[i].y) / U.y))
-            max_y = abs((U.y - res[i].y) / U.y);
-    }
-
-    std::cout << "Reletive: ";
-    std::cout << std::max(max_x, max_y) << "\n";
+    return 0;
 }

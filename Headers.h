@@ -2,6 +2,7 @@
 #include <vector>
 #include <iostream>
 #include <functional>
+#include <algorithm>
 
 struct Point {
 	double x, y;
@@ -58,6 +59,12 @@ public:
 
 	static Matrix eye(size_t n, double a = 1);
 };
+
+std::vector<double> solveGaussFullPivot(
+	const Matrix& A,
+	const std::vector<double>& b,
+	double eps = 1e-12
+);
 
 // Класс хранящий сетку для МКЭ
 class FEM {
@@ -171,12 +178,17 @@ public:
 
 	Matrix matrix_form_basis();
 
+	const Matrix& get_K() const { return K; }
+	const std::vector<double>& get_f() const { return f; }
+	const std::vector<std::vector<Point>>& get_basis() const { return basis; }
+
 	// интегралы от ГУ 2 рода * функции формы мкэ
 	void construct_f_bc2(const std::vector<size_t>& pos,
 		const std::vector<vec_function>& g);
 
 	//void find_coefficients(const vec_function& g);
 	std::vector<Point> find_answer();
+	std::vector<Point> find_answer(const std::vector<double>& coefs, int start = 0);
 
 	// +-N-+ ♡♡♡♡♡♡♡♡♡♡♡♡
 	// W---E ♡♡♡♡♡♡♡♡♡♡♡♡
@@ -192,4 +204,23 @@ public:
 	// pos = {W, N, E, S} 
 	void set_bc2(const std::vector<size_t>& pos, 
 		const std::vector<vec_function>& g);
+
+	// список всех узлов МКСЭ сетки на стороне side
+	std::vector<size_t> get_side_nodes(char side) const;
+	// список всех узлов МКЭ сетки на стороне side
+	std::vector<size_t> get_side_fem_nodes(char side) const;
+
+	Point coefficient(int i, Point coef_val) {
+		return (isnan(basis_coefficients[i].x) ? coef_val : basis_coefficients[i]);
+	}
 };
+
+// значение функции формы в точке cur
+double mortar_shape_func(size_t i, const std::vector<double>& s, double cur);
+
+// мортар метод для контактного взаимодействия
+std::vector<double> solve_mortar_contact(
+	FSEM& bottom_body,
+	FSEM& top_body,
+	const std::vector<double>& rhs_bottom,
+	const std::vector<double>& rhs_top);

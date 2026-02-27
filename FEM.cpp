@@ -47,7 +47,7 @@ FEM::FEM(const Point& a, const Point& b, size_t n, size_t m)
 	points.resize(m * n);
 	f.resize(m * n);
 	for (size_t i = 0; i != points.size(); ++i) {
-		points[i] = { (i % m) * dx, (i / m) * dy };
+		points[i] = { a.x + (i % m) * dx, a.y + (i / m) * dy };
 	}
 
 	triangles.resize(2 * (m - 1) * (n - 1));

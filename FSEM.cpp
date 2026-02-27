@@ -15,8 +15,8 @@ FSEM::FSEM(double E, double nu, const Point& a, const Point& b,
 	a(a), b(b), E(E), nu(nu), n_side_x(n_x - 1),
 	n_side_y(n_y - 1), 
 	fem(a, b, (n_y - 1)* coef_y + 1, (n_x - 1)* coef_x + 1),
-	K((coef_x * (n_x - 1) + 1) * (coef_y * (n_y - 1) + 1)),
-	f((coef_x * (n_x - 1) + 1) * (coef_y* (n_y - 1) + 1))
+	K(2 * (coef_x * (n_x - 1) + 1) * (coef_y * (n_y - 1) + 1)),
+	f(2 * (coef_x * (n_x - 1) + 1) * (coef_y* (n_y - 1) + 1))
 	{
 
 	double h_x = (b.x - a.x) / n_side_x, h_y = (b.y - a.y) / n_side_y; // шаг
@@ -27,7 +27,7 @@ FSEM::FSEM(double E, double nu, const Point& a, const Point& b,
 	basis = std::vector<std::vector<Point>>(2 * n_nodes,
 		std::vector<Point>((coef_x * n_side_x + 1) * (coef_y * n_side_y + 1)));
 
-	basis_coefficients.resize(2 * n_nodes);
+	basis_coefficients = std::vector<Point>(2 * n_nodes, { NAN, NAN });
 	
 	for (int i = 0; i < n_side_y; ++i) {
 		nodes[i] = { a.x, a.y + i * h_y };
@@ -170,7 +170,7 @@ void FSEM::construct_basis() {
 	fem.set_AF(A, F);
 	fem.apply_boundaries();
 	basis[2 * n_side_y + 1] = fem.solve();
-
+	
 	//******************ПРАВЫЙ ВЕРХНИЙ УГОЛ******************
 	
 	// находим базисную функцию для, равную 1 в b по х компоненте
@@ -284,7 +284,7 @@ void FSEM::construct_basis() {
 	for (int i = 1; i < n_side_y; ++i) {
 
 		//--------------НА ЛЕВОЙ--------------
-
+		
 		// находим базисную функцию для, равную 1 в i по х компоненте
 		fem.set_boundaries('W',
 			[&](const Point& p)
@@ -489,7 +489,11 @@ void FSEM::construct_basis() {
 		basis[2 * (2 * n_side_y + n_side_x + i) + 1] = fem.solve();
 		
 	}
-
+	/*for (size_t i = 0; i < basis.size(); ++i){
+		for (size_t j = 0; j < basis[0].size(); ++j) 
+			std::cout << basis[i][j] << ' ';
+		std::cout << '\n';
+	}*/
 	Matrix W = matrix_form_basis();
 	K = W.T().dot(A).dot(W);
 }
@@ -730,6 +734,189 @@ std::vector<Point> FSEM::find_answer() {
 				basis_coefficients[j].y * basis[2 * j + 1][i].x;
 			res[i].y += basis_coefficients[j].x * basis[2 * j][i].y +
 				basis_coefficients[j].y * basis[2 * j + 1][i].y;
+		}
+
+	return res;
+}
+
+std::vector<size_t> FSEM::get_side_nodes(char side) const {
+	std::vector<size_t> side_nodes;
+	double value = 0;
+	bool hor = false;
+
+	if (side == 'N') {
+		hor = true;
+		value = b.y;
+	}
+	else if (side == 'S') {
+		hor = true;
+		value = a.y;
+	}
+	else if (side == 'W')
+		value = a.x;
+
+	else if (side == 'E')
+		value = b.x;
+
+	for (size_t i = 0; i < nodes.size(); ++i) {
+		if (hor) {
+			side_nodes.reserve(n_side_x + 1);
+			if (fabs(nodes[i].y - value) < 1e-10)
+				side_nodes.push_back(i);
+		}
+		else {
+			side_nodes.reserve(n_side_y + 1);
+			if (fabs(nodes[i].x - value) < 1e-10)
+				side_nodes.push_back(i);
+		}
+	}
+
+	std::sort(side_nodes.begin(), side_nodes.end(), [&](size_t lhs, size_t rhs) {
+		if (hor)
+			return nodes[lhs].x < nodes[rhs].x;
+		return nodes[lhs].y < nodes[rhs].y;
+		});
+
+	return side_nodes;
+}
+
+std::vector<size_t> FSEM::get_side_fem_nodes(char side) const {
+	std::vector<size_t> side_nodes;
+	const size_t mx = n_side_x + 1;
+	const size_t ny = n_side_y + 1;
+
+	if (side == 'S') {
+		side_nodes.reserve(mx);
+		for (size_t j = 0; j < mx; ++j)
+			side_nodes.push_back(j);
+	}
+	else if (side == 'N') {
+		side_nodes.reserve(mx);
+		for (size_t j = 0; j < mx; ++j)
+			side_nodes.push_back(mx * (ny - 1) + j);
+	}
+	else if (side == 'W') {
+		side_nodes.reserve(ny);
+		for (size_t i = 0; i < ny; ++i)
+			side_nodes.push_back(i * mx);
+	}
+	else if (side == 'E') {
+		side_nodes.reserve(ny);
+		for (size_t i = 0; i < ny; ++i)
+			side_nodes.push_back(i * mx + mx - 1);
+	}
+
+	return side_nodes;
+}
+
+double mortar_shape_func(size_t i, const std::vector<double>& s, double cur) {
+	if (i > 0 && cur >= s[i - 1] && cur <= s[i])
+		return (cur - s[i - 1]) / (s[i] - s[i - 1]);
+
+	if (i + 1 < s.size() && cur >= s[i] && cur <= s[i + 1])
+		return (s[i + 1] - cur) / (s[i + 1] - s[i]);
+	return 0;
+}
+
+std::vector<double> solve_mortar_contact(
+	FSEM& bottom_body,
+	FSEM& top_body,
+	const std::vector<double>& rhs_bottom,
+	const std::vector<double>& rhs_top) {
+
+	Matrix A1 = bottom_body.get_K();
+	Matrix A2 = top_body.get_K();
+	
+	const auto& basis1 = bottom_body.get_basis();
+	const auto& basis2 = top_body.get_basis();
+	
+	std::vector<size_t> side_bottom = bottom_body.get_side_nodes('N');
+	std::vector<size_t> side_top = top_body.get_side_nodes('S');
+	std::vector<size_t> fem_bottom = bottom_body.get_side_fem_nodes('N');
+	std::vector<size_t> fem_top = top_body.get_side_fem_nodes('S');
+
+	const size_t n1 = A1.size();
+	const size_t n2 = A2.size();
+
+	const size_t n_lambda = side_bottom.size();
+	Matrix M1(n1, n_lambda);
+	Matrix M2(n2, n_lambda);
+
+	// узлы на контактной поверхности
+	std::vector<double> s(n_lambda);
+	for (size_t i = 0; i < n_lambda; ++i)
+		s[i] = bottom_body[side_bottom[i]].x;
+
+	for (size_t seg = 0; seg + 1 < n_lambda; ++seg) {
+		double x_left = s[seg];
+		double x_right = s[seg + 1];
+		double len = x_right - x_left;
+		double x_mid = 0.5 * (x_left + x_right);
+
+		for (size_t j = 0; j < side_bottom.size(); ++j) {
+
+			double N_val = 0.5 * (basis1[2 * side_bottom[j] + 1][fem_bottom[seg]].y +
+				basis1[2 * side_bottom[j] + 1][fem_bottom[seg + 1]].y);
+		
+			for (size_t l = 0; l < n_lambda; ++l) {
+				double L_val = mortar_shape_func(l, s, x_mid);
+				M1[2 * side_bottom[j] + 1][l] += N_val * L_val * len;
+			}
+		}
+
+		for (size_t j = 0; j < side_top.size(); ++j) {
+			double N_val = 0.5 * (basis2[2 * side_top[j] + 1][fem_top[seg]].y +
+				basis2[2 * side_top[j] + 1][fem_top[seg + 1]].y);
+			for (size_t l = 0; l < n_lambda; ++l) {
+				double L_val = mortar_shape_func(l, s, x_mid);
+				M2[2 * side_top[j] + 1][l] += N_val * L_val * len;
+			}
+		}
+	}
+
+	const size_t total = n1 + n2 + n_lambda;
+
+	Matrix Sys(total);
+	std::vector<double> rhs(total, 0);
+
+	for (size_t i = 0; i < n1; ++i) {
+		rhs[i] = rhs_bottom[i];
+		for (size_t j = 0; j < n1; ++j)
+			Sys[i][j] = A1[i][j];
+	}
+	
+	for (size_t i = 0; i < n2; ++i) {
+		rhs[n1 + i] = rhs_top[i];
+		for (size_t j = 0; j < n2; ++j)
+			Sys[n1 + i][n1 + j] = A2[i][j];
+	}
+
+	for (size_t i = 0; i < n1; ++i)
+		for (size_t j = 0; j < n_lambda; ++j) {
+			Sys[i][n1 + n2 + j] = M1[i][j];
+			Sys[n1 + n2 + j][i] = M1[i][j];
+		}
+	
+	for (size_t i = 0; i < n2; ++i)
+		for (size_t j = 0; j < n_lambda; ++j) {
+			Sys[n1 + i][n1 + n2 + j] = -M2[i][j];
+			Sys[n1 + n2 + j][n1 + i] = -M2[i][j];
+		}
+	
+	return solveGaussFullPivot(Sys, rhs);
+}
+
+std::vector<Point> FSEM::find_answer(const std::vector<double>& coefs, int start) {
+
+	std::vector<Point> res(fem.psize());
+	for (size_t i = 0; i < res.size(); i++)
+		for (size_t j = 0; j < nodes.size(); j++) {
+			Point coef = coefficient(j, { coefs[start + 2 * j] ,
+				coefs[start + 2 * j + 1] });
+			res[i].x += coef.x * basis[2 * j][i].x +
+				coef.y * basis[2 * j + 1][i].x;
+			res[i].y += coef.x * basis[2 * j][i].y +
+				coef.y * basis[2 * j + 1][i].y;
 		}
 
 	return res;

@@ -156,3 +156,69 @@ std::vector<double> solveLU(const Matrix& L, const Matrix& U,
 
 	return x;
 }
+
+std::vector<double> solveGaussFullPivot(const Matrix& A,
+	const std::vector<double>& b,
+	double eps) {
+	
+	const size_t n = A.size();
+	Matrix M(A);
+	std::vector<double> rhs = b;
+
+	// перестановки столбцов
+	std::vector<size_t> col_perm(n);
+
+	for (size_t i = 0; i != n; ++i)
+		col_perm[i] = i;
+
+	for (size_t k = 0; k != n; ++k) {
+		size_t pivot_row = k;
+		size_t pivot_col = k;
+		double pivot_abs = 0;
+
+		for (size_t i = k; i != n; ++i) {
+			for (size_t j = k; j != n; ++j) {
+				double cur = abs(M[i][j]);
+				if (cur > pivot_abs) {
+					pivot_abs = cur;
+					pivot_row = i;
+					pivot_col = j;
+				}
+			}
+		}
+
+		if (pivot_row != k) {
+			std::swap(M[pivot_row], M[k]);
+			std::swap(rhs[pivot_row], rhs[k]);
+		}
+
+		if (pivot_col != k) {
+			for (size_t i = 0; i != n; ++i)
+				std::swap(M[i][pivot_col], M[i][k]);
+			std::swap(col_perm[pivot_col], col_perm[k]);
+		}
+
+		for (size_t i = k + 1; i != n; ++i) {
+			double factor = M[i][k] / M[k][k];
+			M[i][k] = 0;
+			for (size_t j = k + 1; j != n; ++j)
+				M[i][j] -= factor * M[k][j];
+			rhs[i] -= factor * rhs[k];
+		}
+	}
+
+	std::vector<double> y(n);
+	for (size_t i = n; i-- > 0;) {
+		double sum = rhs[i];
+		for (size_t j = i + 1; j != n; ++j)
+			sum -= M[i][j] * y[j];
+
+		y[i] = sum / M[i][i];
+	}
+
+	std::vector<double> x(n);
+	for (size_t i = 0; i != n; ++i)
+		x[col_perm[i]] = y[i];
+
+	return x;
+}
