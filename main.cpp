@@ -29,8 +29,8 @@ vec_function ans(double nu, double E) {
         const double& x = p.x, & y = p.y;
 
         //     x2      y2      x        y        c
-        double a1 = 0, a3 = 0, a4 = 0, a5 = 0,  a6 = 5;
-        double b1 = 0, b3 = 0, b4 = 0,  b5 = 0, b6 = 1;
+        double a1 = 0, a3 = 0, a4 = 0, a5 = 0,  a6 = 234;
+        double b1 = 0, b3 = 0, b4 = 0,  b5 = 0, b6 = 5;
 
         double a2 = -(2 * mu * b1 + (4 * mu + 2 * lambda) * b3) / (lambda + mu),
             b2 = -(2 * mu * a3 + (4 * mu + 2 * lambda) * a1) / (lambda + mu);
@@ -50,7 +50,7 @@ int main() {
     Point bottom_a = { 0, 0 }, bottom_b = { 4, 2 };
     Point top_a = { 0, 2 }, top_b = { 4, 4 };
 
-    size_t n_x = 3, n_y = 3;
+    size_t n_x = 5, n_y = 5;
 
     FSEM bottom(E, nu, bottom_a, bottom_b, n_x, n_y);
     FSEM top(E, nu, top_a, top_b, n_x, n_y);
@@ -84,16 +84,42 @@ int main() {
     auto ANS = ans(nu, E);
 
     auto res_bottom = bottom.find_answer(solution);
+    auto res_top = top.find_answer(solution, n1);
 
-    std::cout << "\nu_bottom solution:\n";
+    /*std::cout << "\nu_bottom solution:\n";
     for (size_t i = 0; i != res_bottom.size(); ++i)
         std::cout << i << ": " << res_bottom[i] << '\t' << ANS((bottom.fem)[i]) << '\n';
 
-    auto res_top = top.find_answer(solution, n1);
-
     std::cout << "\nu_top solution:\n";
     for (size_t i = 0; i != res_top.size(); ++i)
-        std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';
+        std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';*/
+
+    // Расчет и вывод нормы ошибки
+    double max_x = 0, max_y = 0;
+
+    for (size_t i = 0; i != res_bottom.size(); ++i) {
+        Point U = ANS((bottom.fem)[i]);
+        if (fabs(U.x) > 1e-15 and max_x < abs((U.x - res_bottom[i].x) / U.x))
+            max_x = abs((U.x - res_bottom[i].x) / U.x);
+        if (fabs(U.y) > 1e-15 and max_y < abs((U.y - res_bottom[i].y) / U.y))
+            max_y = abs((U.y - res_bottom[i].y) / U.y);
+    }
+
+    std::cout << "Reletive u_bottom: ";
+    std::cout << std::max(max_x, max_y) << "\n";
+
+    max_x = 0, max_y = 0;
+
+    for (size_t i = 0; i != res_top.size(); ++i) {
+        Point U = ANS((top.fem)[i]);
+        if (fabs(U.x) > 1e-15 and max_x < abs((U.x - res_top[i].x) / U.x))
+            max_x = abs((U.x - res_top[i].x) / U.x);
+        if (fabs(U.y) > 1e-15 and max_y < abs((U.y - res_top[i].y) / U.y))
+            max_y = abs((U.y - res_top[i].y) / U.y);
+    }
+
+    std::cout << "Reletive u_top: ";
+    std::cout << std::max(max_x, max_y) << "\n";
 
     return 0;
 }

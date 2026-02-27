@@ -919,6 +919,9 @@ std::vector<double> solve_mortar_contact(
 			Sys[n1 + i][n1 + n2 + j] = -M2[i][j];
 			Sys[n1 + n2 + j][n1 + i] = -M2[i][j];
 		}
+
+	for (size_t j = 0; j < n_lambda; ++j)
+		Sys[n1 + n2 + j][n1 + n2 + j] = 1e-12;
 	
 	auto apply_known_dof = [&](size_t dof, double value) {
 		for (size_t i = 0; i < Sys[0].size(); ++i) 
@@ -933,9 +936,7 @@ std::vector<double> solve_mortar_contact(
 
 	for (const auto& [dof, value] : known_top)
 		apply_known_dof(n1 + dof, value);
-	Sys.print();
-	/*for (size_t i = 0; i < rhs.size(); ++i)
-		std::cout << rhs[i] << '\n';*/
+	
 	return solveGaussFullPivot(Sys, rhs);
 }
 
