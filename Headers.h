@@ -213,6 +213,8 @@ public:
 	Point coefficient(int i, Point coef_val) {
 		return (isnan(basis_coefficients[i].x) ? coef_val : basis_coefficients[i]);
 	}
+
+	std::vector<std::pair<size_t, double>> get_known_dofs() const;
 };
 
 // значение функции формы в точке cur

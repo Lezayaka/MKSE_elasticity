@@ -809,6 +809,20 @@ std::vector<size_t> FSEM::get_side_fem_nodes(char side) const {
 	return side_nodes;
 }
 
+std::vector<std::pair<size_t, double>> FSEM::get_known_dofs() const {
+	std::vector<std::pair<size_t, double>> known;
+	known.reserve(2 * basis_coefficients.size());
+
+	for (size_t i = 0; i < basis_coefficients.size(); ++i) {
+		if (!std::isnan(basis_coefficients[i].x))
+			known.emplace_back(2 * i, basis_coefficients[i].x);
+		if (!std::isnan(basis_coefficients[i].y))
+			known.emplace_back(2 * i + 1, basis_coefficients[i].y);
+	}
+
+	return known;
+}
+
 double mortar_shape_func(size_t i, const std::vector<double>& s, double cur) {
 	if (i > 0 && cur >= s[i - 1] && cur <= s[i])
 		return (cur - s[i - 1]) / (s[i] - s[i - 1]);
@@ -874,6 +888,9 @@ std::vector<double> solve_mortar_contact(
 		}
 	}
 
+	const auto known_bottom = bottom_body.get_known_dofs();
+	const auto known_top = top_body.get_known_dofs();
+
 	const size_t total = n1 + n2 + n_lambda;
 
 	Matrix Sys(total);
@@ -903,6 +920,22 @@ std::vector<double> solve_mortar_contact(
 			Sys[n1 + n2 + j][n1 + i] = -M2[i][j];
 		}
 	
+	auto apply_known_dof = [&](size_t dof, double value) {
+		for (size_t i = 0; i < Sys[0].size(); ++i) 
+			Sys[dof][i] = 0;
+
+		Sys[dof][dof] = 1;
+		rhs[dof] = value;
+		};
+
+	for (const auto& [dof, value] : known_bottom)
+		apply_known_dof(dof, value);
+
+	for (const auto& [dof, value] : known_top)
+		apply_known_dof(n1 + dof, value);
+	Sys.print();
+	/*for (size_t i = 0; i < rhs.size(); ++i)
+		std::cout << rhs[i] << '\n';*/
 	return solveGaussFullPivot(Sys, rhs);
 }
 
