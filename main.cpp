@@ -30,7 +30,7 @@ vec_function ans(double nu, double E) {
 
         //     x2      y2      x        y        c
         double a1 = 0, a3 = 0, a4 = 0, a5 = 1,  a6 = 234;
-        double b1 = 0, b3 = 0, b4 = 3,  b5 = 0, b6 = 5;
+        double b1 = 0, b3 = 0, b4 = 0,  b5 = 0, b6 = 5;
 
         double a2 = -(2 * mu * b1 + (4 * mu + 2 * lambda) * b3) / (lambda + mu),
             b2 = -(2 * mu * a3 + (4 * mu + 2 * lambda) * a1) / (lambda + mu);
@@ -86,13 +86,13 @@ int main() {
     auto res_bottom = bottom.find_answer(solution);
     auto res_top = top.find_answer(solution, n1);
 
-    /*std::cout << "\nu_bottom solution:\n";
+    std::cout << "\nu_bottom solution:\n";
     for (size_t i = 0; i != res_bottom.size(); ++i)
         std::cout << i << ": " << res_bottom[i] << '\t' << ANS((bottom.fem)[i]) << '\n';
 
     std::cout << "\nu_top solution:\n";
     for (size_t i = 0; i != res_top.size(); ++i)
-        std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';*/
+        std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';
 
     // Расчет и вывод нормы ошибки
     double max_x = 0, max_y = 0;

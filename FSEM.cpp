@@ -1,4 +1,5 @@
 #include "Headers.h"
+#include <array>
 
 Point zero(const Point& p) {
 	return { 0, 0 };
@@ -869,21 +870,28 @@ std::vector<double> solve_mortar_contact(
 
 		for (size_t j = 0; j < side_bottom.size(); ++j) {
 
-			double N_val = 0.5 * (basis1[2 * side_bottom[j] + 1][fem_bottom[seg]].y +
-				basis1[2 * side_bottom[j] + 1][fem_bottom[seg + 1]].y);
-		
+			const size_t node = side_bottom[j];
+			double N_val_xcoef = 0.5 * (basis1[2 * node][fem_bottom[seg]].y +
+				basis1[2 * node][fem_bottom[seg + 1]].y);
+			double N_val_ycoef = 0.5 * (basis1[2 * node + 1][fem_bottom[seg]].y +
+				basis1[2 * node + 1][fem_bottom[seg + 1]].y);
 			for (size_t l = 0; l < n_lambda; ++l) {
 				double L_val = mortar_shape_func(l, s, x_mid);
-				M1[2 * side_bottom[j] + 1][l] += N_val * L_val * len;
+				M1[2 * node][l] += N_val_xcoef * L_val * len;
+				M1[2 * node + 1][l] += N_val_ycoef * L_val * len;
 			}
 		}
 
 		for (size_t j = 0; j < side_top.size(); ++j) {
-			double N_val = 0.5 * (basis2[2 * side_top[j] + 1][fem_top[seg]].y +
-				basis2[2 * side_top[j] + 1][fem_top[seg + 1]].y);
+			const size_t node = side_top[j];
+			double N_val_xcoef = 0.5 * (basis2[2 * node][fem_top[seg]].y +
+				basis2[2 * node][fem_top[seg + 1]].y);
+			double N_val_ycoef = 0.5 * (basis2[2 * node + 1][fem_top[seg]].y +
+				basis2[2 * node + 1][fem_top[seg + 1]].y);
 			for (size_t l = 0; l < n_lambda; ++l) {
 				double L_val = mortar_shape_func(l, s, x_mid);
-				M2[2 * side_top[j] + 1][l] += N_val * L_val * len;
+				M2[2 * node][l] += N_val_xcoef * L_val * len;
+				M2[2 * node + 1][l] += N_val_ycoef * L_val * len;
 			}
 		}
 	}
@@ -924,13 +932,6 @@ std::vector<double> solve_mortar_contact(
 		Sys[n1 + n2 + j][n1 + n2 + j] = 1e-12;
 	
 	auto apply_known_dof = [&](size_t dof, double value) {
-		for (size_t row = 0; row < Sys.size(); ++row) {
-			if (row == dof)
-				continue;
-			rhs[row] -= Sys[row][dof] * value;
-			Sys[row][dof] = 0;
-		}
-
 		for (size_t col = 0; col < Sys[dof].size(); ++col)
 			Sys[dof][col] = 0;
 
@@ -952,8 +953,8 @@ std::vector<Point> FSEM::find_answer(const std::vector<double>& coefs, int start
 	std::vector<Point> res(fem.psize());
 	for (size_t i = 0; i < res.size(); i++)
 		for (size_t j = 0; j < nodes.size(); j++) {
-			Point coef = coefficient(j, { coefs[start + 2 * j] ,
-				coefs[start + 2 * j + 1] });
+			Point coef = { coefs[start + 2 * j] ,
+				coefs[start + 2 * j + 1] };
 			res[i].x += coef.x * basis[2 * j][i].x +
 				coef.y * basis[2 * j + 1][i].x;
 			res[i].y += coef.x * basis[2 * j][i].y +
