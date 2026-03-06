@@ -928,7 +928,6 @@ std::vector<double> solve_mortar_contact(
 			Sys[n1 + n2 + j][n1 + i] = -M2[i][j];
 		}
 
-	for (size_t j = 0; j < n_lambda; ++j)
 		Sys[n1 + n2 + j][n1 + n2 + j] = 1e-12;
 	
 	auto apply_known_dof = [&](size_t dof, double value) {
