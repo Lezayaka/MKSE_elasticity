@@ -3,7 +3,7 @@
 #include <cmath>
 #include <math.h>
 
-# define M_PI 3.14159265358979323846
+#define M_PI 3.14159265358979323846
 
 #include "Headers.h"
 
@@ -29,8 +29,8 @@ vec_function ans(double nu, double E) {
         const double& x = p.x, & y = p.y;
 
         //     x2      y2      x        y        c
-        double a1 = 0, a3 = 0, a4 = 0, a5 = 1,  a6 = 234;
-        double b1 = 0, b3 = 0, b4 = 0,  b5 = 0, b6 = 5;
+        double a1 = 8, a3 = 0, a4 = 0, a5 = 1, a6 = 0;
+        double b1 = 0, b3 = 4, b4 = 0, b5 = 0, b6 = -8;
 
         double a2 = -(2 * mu * b1 + (4 * mu + 2 * lambda) * b3) / (lambda + mu),
             b2 = -(2 * mu * a3 + (4 * mu + 2 * lambda) * a1) / (lambda + mu);
@@ -47,10 +47,12 @@ int main() {
     double E = 21e+10;
     double nu = 0.3;
 
-    Point bottom_a = { 0, 0 }, bottom_b = { 4, 2 };
-    Point top_a = { 0, 2 }, top_b = { 4, 4 };
+    Point bottom_a = { 0, 0 }, bottom_b = { 3, 2 };
+    Point top_a = { 0, 2 }, top_b = { 3, 4 };
 
-    size_t n_x = 5, n_y = 5;
+    auto ANS = ans(nu, E);
+
+    size_t n_x = 3, n_y = 3;
 
     FSEM bottom(E, nu, bottom_a, bottom_b, n_x, n_y);
     FSEM top(E, nu, top_a, top_b, n_x, n_y);
@@ -62,6 +64,19 @@ int main() {
     bottom.set_bc1('S', ans(nu, E));
     bottom.set_bc1('W', ans(nu, E));
     bottom.set_bc1('E', ans(nu, E));
+    
+    /*bottom.construct_f_bc2({ 0, 0, 0, 1 }, {
+        zero,
+
+        zero,
+
+        zero,
+
+        [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        return Point{ 0, -(lambda + 2 * mu) }; }
+        });*/
 
     // Верхнее тело: задаем внешнюю нагрузку сверху.
     top.set_bc1('W', ans(nu, E));
@@ -70,21 +85,40 @@ int main() {
 
     std::vector<double> rhs_bottom = bottom.get_f();
     std::vector<double> rhs_top = top.get_f();
-    
-   std::vector<double> solution = solve_mortar_contact(bottom, top, rhs_bottom, rhs_top);
-   
+    std::vector<double> solution = solve_mortar_contact(bottom, top, rhs_bottom, rhs_top);
+
     const size_t n1 = bottom.get_K().size();
     const size_t n2 = top.get_K().size();
-    
+
     std::cout << "Unknowns: u1=" << n1 / 2
         << " nodes, u2=" << n2 / 2
         << " nodes, lambda=" << (solution.size() - n1 - n2)
         << " nodes\n";
 
-    auto ANS = ans(nu, E);
-
     auto res_bottom = bottom.find_answer(solution);
     auto res_top = top.find_answer(solution, n1);
+
+    const auto bottom_contact_nodes = bottom.get_side_fem_nodes('N');
+    const auto top_contact_nodes = top.get_side_fem_nodes('S');
+    const size_t n_contact = std::min(bottom_contact_nodes.size(), top_contact_nodes.size());
+
+    std::cout << "\nContact surface values:\n";
+    std::cout << "id\tpoint\tu_bottom\tu_top\tu_exact(one-body)\n";
+
+    for (size_t i = 0; i < n_contact; ++i) {
+        const size_t bottom_contact_id = bottom_contact_nodes[i];
+        const size_t top_contact_id = top_contact_nodes[i];
+
+        const Point bottom_contact_point = bottom.fem[bottom_contact_id];
+        const Point top_contact_point = top.fem[top_contact_id];
+        const Point exact_contact_value = ANS(bottom_contact_point);
+
+        std::cout << i << "\t" << bottom_contact_point
+            << "\t" << res_bottom[bottom_contact_id]
+            << "\t" << res_top[top_contact_id]
+            << "\t" << exact_contact_value << "\n";
+
+    }
 
     std::cout << "\nu_bottom solution:\n";
     for (size_t i = 0; i != res_bottom.size(); ++i)
@@ -106,7 +140,7 @@ int main() {
     }
 
     std::cout << "Reletive u_bottom: ";
-    std::cout << std::max(max_x, max_y) << "\n";
+    std::cout << max_x << ' ' << max_y << "\n";
 
     max_x = 0, max_y = 0;
 
@@ -119,7 +153,7 @@ int main() {
     }
 
     std::cout << "Reletive u_top: ";
-    std::cout << std::max(max_x, max_y) << "\n";
+    std::cout << max_x << ' ' << max_y << "\n";
 
     return 0;
 }

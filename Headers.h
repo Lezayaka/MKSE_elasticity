@@ -226,3 +226,7 @@ std::vector<double> solve_mortar_contact(
 	FSEM& top_body,
 	const std::vector<double>& rhs_bottom,
 	const std::vector<double>& rhs_top);
+
+std::vector<double> solveWithLU(const Matrix& A,
+	const std::vector<double>& b,
+	double eps = 1e-15);

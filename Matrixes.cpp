@@ -222,3 +222,119 @@ std::vector<double> solveGaussFullPivot(const Matrix& A,
 
 	return x;
 }
+
+bool lu_decomposition_partial_pivot(const Matrix& A,
+	Matrix& L,
+	Matrix& U,
+	std::vector<size_t>& row_perm,
+	double eps = 1e-15) {
+	const size_t n = A.size();
+	if (A.size(1) != n) throw std::runtime_error("LU: A must be square");
+
+	// копируем A в U
+	U = A;
+	L = Matrix::eye(n);
+	row_perm.resize(n);
+	for (size_t i = 0; i < n; ++i) row_perm[i] = i;
+
+	// макс абсолютное значение в A (для масштабирования jitter)
+	double max_abs = 0.0;
+	for (size_t i = 0; i < n; ++i)
+		for (size_t j = 0; j < n; ++j)
+			max_abs = std::max(max_abs, std::abs(A[i][j]));
+
+	for (size_t k = 0; k < n; ++k) {
+		// ищем pivot по модулю в столбце k (строки k..n-1)
+		size_t pivot_row = k;
+		double pivot_abs = 0.0;
+		for (size_t i = k; i < n; ++i) {
+			double cur = std::abs(U[i][k]);
+			if (cur > pivot_abs) { pivot_abs = cur; pivot_row = i; }
+		}
+
+		// если pivot слишком мал -> применим небольшую регуляризацию к диагонали U (однократно)
+		if (pivot_abs < eps) {
+			// regularization scale: tiny * (1 + max_abs)
+			double tiny = 1e-12;
+			double tau = tiny * (1.0 + max_abs);
+			for (size_t i = k; i < n; ++i) U[i][i] += tau;
+			// после добавления tau нужно пересчитать pivot
+			pivot_abs = 0.0;
+			pivot_row = k;
+			for (size_t i = k; i < n; ++i) {
+				double cur = std::abs(U[i][k]);
+				if (cur > pivot_abs) { pivot_abs = cur; pivot_row = i; }
+			}
+			// если все ещё ноль -> singular
+			if (pivot_abs < eps) return false;
+		}
+
+		// swap rows pivot_row <-> k в U
+		if (pivot_row != k) {
+			std::swap(U[pivot_row], U[k]);
+			std::swap(row_perm[pivot_row], row_perm[k]);
+			// swap соответствующих частей в L (колонки 0..k-1)
+			for (size_t j = 0; j < k; ++j)
+				std::swap(L[pivot_row][j], L[k][j]);
+		}
+
+		// стандартные шаги LU (Doolittle)
+		double Akk = U[k][k];
+		if (std::abs(Akk) < eps) return false; // неожиданно маленький после попыток
+
+		for (size_t i = k + 1; i < n; ++i) {
+			double mult = U[i][k] / Akk;
+			L[i][k] = mult;
+			U[i][k] = 0.0; // явно зануляем
+			for (size_t j = k + 1; j < n; ++j)
+				U[i][j] -= mult * U[k][j];
+		}
+	}
+
+	return true;
+}
+
+std::vector<double> solveLU_with_perm(const Matrix& L,
+	const Matrix& U,
+	const std::vector<size_t>& row_perm,
+	const std::vector<double>& b) {
+	const size_t n = L.size();
+	std::vector<double> rhs(n);
+	// применяем перестановку строк (P*b)
+	for (size_t i = 0; i < n; ++i) rhs[i] = b[row_perm[i]];
+
+	// forward: L y = P b
+	std::vector<double> y(n);
+	for (size_t i = 0; i < n; ++i) {
+		double s = rhs[i];
+		for (size_t j = 0; j < i; ++j) s -= L[i][j] * y[j];
+		y[i] = s; // L[i][i] == 1
+	}
+
+	// backward: U x = y
+	std::vector<double> x(n);
+	for (size_t ii = 0; ii < n; ++ii) { // using reverse index safely
+		size_t i = n - 1 - ii;
+		double s = y[i];
+		for (size_t j = i + 1; j < n; ++j) s -= U[i][j] * x[j];
+		x[i] = s / U[i][i];
+	}
+
+	return x;
+}
+
+// Удобная обёртка
+std::vector<double> solveWithLU(const Matrix& A,
+	const std::vector<double>& b,
+	double eps) {
+	const size_t n = A.size();
+	if (b.size() != n) throw std::runtime_error("Размер b != размерности A");
+
+	Matrix L(n, n), U(n, n);
+	std::vector<size_t> row_perm;
+	bool ok = lu_decomposition_partial_pivot(A, L, U, row_perm, eps);
+	if (!ok) {
+		throw std::runtime_error("LU: матрица сингулярна или близка к сингулярной (pivot ~ 0)");
+	}
+	return solveLU_with_perm(L, U, row_perm, b);
+}
