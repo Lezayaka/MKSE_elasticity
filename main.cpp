@@ -63,7 +63,7 @@ int main() {
     // Нижнее тело: фиксируем низ, остальные стороны свободны.
     bottom.set_bc1('S', ans(nu, E));
     bottom.set_bc1('W', ans(nu, E));
-    bottom.set_bc1('E', ans(nu, E));
+    //bottom.set_bc1('E', ans(nu, E));
 
    bottom.construct_f_bc2({ 0, 0, 1, 0 }, {
         zero,
