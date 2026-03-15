@@ -856,21 +856,19 @@ std::vector<double> solve_mortar_contact(
 	const size_t n2 = A2.size();
 
 	const size_t n_lambda = side_bottom.size();
-	/*const size_t n_lambda_scalar = side_bottom.size();
-	const size_t n_lambda = 2 * n_lambda_scalar;*/
 
-	Matrix M1(n1, n_lambda );
+	const auto known_bottom = bottom_body.get_known_dofs();
+	const auto known_top = top_body.get_known_dofs();
+	
+	Matrix M1(n1, n_lambda);
 	Matrix M2(n2, n_lambda);
 
 	// узлы на контактной поверхности
 	std::vector<double> s(n_lambda);
 	for (size_t i = 0; i < n_lambda; ++i)
-	/*std::vector<double> s(n_lambda_scalar);
-	for (size_t i = 0; i < n_lambda_scalar; ++i)*/
 		s[i] = bottom_body[side_bottom[i]].x;
 
 	for (size_t seg = 0; seg + 1 < n_lambda; ++seg) {
-	//for (size_t seg = 0; seg + 1 < n_lambda_scalar; ++seg) {
 		double x_left = s[seg];
 		double x_right = s[seg + 1];
 		double len = x_right - x_left;
@@ -879,65 +877,35 @@ std::vector<double> solve_mortar_contact(
 		for (size_t j = 0; j < side_bottom.size(); ++j) {
 			
 			const size_t node = side_bottom[j];
-			double N_val_xcoef = 0.5 * (basis1[2 * node][fem_bottom[seg]].y +
+			double N_val_x = 0.5 * (basis1[2 * node][fem_bottom[seg]].y +
 				basis1[2 * node][fem_bottom[seg + 1]].y);
-			double N_val_ycoef = 0.5 * (basis1[2 * node + 1][fem_bottom[seg]].y +
+			double N_val_y = 0.5 * (basis1[2 * node + 1][fem_bottom[seg]].y +
 				basis1[2 * node + 1][fem_bottom[seg + 1]].y);
 
-			/*double N_val_xcoef_x = 0.5 * (basis1[2 * node][fem_bottom[seg]].x +
-				basis1[2 * node][fem_bottom[seg + 1]].x);
-			double N_val_ycoef_x = 0.5 * (basis1[2 * node + 1][fem_bottom[seg]].x +
-				basis1[2 * node + 1][fem_bottom[seg + 1]].x);
-			double N_val_xcoef_y = 0.5 * (basis1[2 * node][fem_bottom[seg]].y +
-				basis1[2 * node][fem_bottom[seg + 1]].y);
-			double N_val_ycoef_y = 0.5 * (basis1[2 * node + 1][fem_bottom[seg]].y +
-				basis1[2 * node + 1][fem_bottom[seg + 1]].y);*/
-
 			for (size_t l = 0; l < n_lambda; ++l) {
-			//for (size_t l = 0; l < n_lambda_scalar; ++l) {
 				double L_val = mortar_shape_func(l, s, x_mid);
 
-				M1[2 * node][l] += N_val_xcoef * L_val * len;
-				M1[2 * node + 1][l] += N_val_ycoef * L_val * len;
-				/*M1[2 * node][2 * l] += N_val_xcoef_x * L_val * len;
-				M1[2 * node + 1][2 * l] += N_val_ycoef_x * L_val * len;
-				M1[2 * node][2 * l + 1] += N_val_xcoef_y * L_val * len;
-				M1[2 * node + 1][2 * l + 1] += N_val_ycoef_y * L_val * len;*/
+				M1[2 * node][l] += N_val_x * L_val * len;
+				M1[2 * node + 1][l] += N_val_y * L_val * len;
 			}
 		}
 
 		for (size_t j = 0; j < side_top.size(); ++j) {
 			const size_t node = side_top[j];
 		
-			double N_val_xcoef = 0.5 * (basis2[2 * node][fem_top[seg]].y +
+			double N_val_x = 0.5 * (basis2[2 * node][fem_top[seg]].y +
 				basis2[2 * node][fem_top[seg + 1]].y);
-			double N_val_ycoef = 0.5 * (basis2[2 * node + 1][fem_top[seg]].y +
+			double N_val_y = 0.5 * (basis2[2 * node + 1][fem_top[seg]].y +
 				basis2[2 * node + 1][fem_top[seg + 1]].y);
 
-			/*double N_val_xcoef_x = 0.5 * (basis2[2 * node][fem_top[seg]].x +
-				basis2[2 * node][fem_top[seg + 1]].x);
-			double N_val_ycoef_x = 0.5 * (basis2[2 * node + 1][fem_top[seg]].x +
-				basis2[2 * node + 1][fem_top[seg + 1]].x);
-			double N_val_xcoef_y = 0.5 * (basis2[2 * node][fem_top[seg]].y +
-				basis2[2 * node][fem_top[seg + 1]].y);
-			double N_val_ycoef_y = 0.5 * (basis2[2 * node + 1][fem_top[seg]].y +
-				basis2[2 * node + 1][fem_top[seg + 1]].y);*/
-
 			for (size_t l = 0; l < n_lambda; ++l) {
-			//for (size_t l = 0; l < n_lambda_scalar; ++l) {
 				double L_val = mortar_shape_func(l, s, x_mid);
-				M2[2 * node][l] += N_val_xcoef * L_val * len;
-				M2[2 * node + 1][l] += N_val_ycoef * L_val * len;
-				/*M2[2 * node][2 * l] += N_val_xcoef_x * L_val * len;
-				M2[2 * node + 1][2 * l] += N_val_ycoef_x * L_val * len;
-				M2[2 * node][2 * l + 1] += N_val_xcoef_y * L_val * len;
-				M2[2 * node + 1][2 * l + 1] += N_val_ycoef_y * L_val * len;*/
+
+				M2[2 * node][l] += N_val_x * L_val * len;
+				M2[2 * node + 1][l] += N_val_y * L_val * len;
 			}
 		}
 	}
-
-	const auto known_bottom = bottom_body.get_known_dofs();
-	const auto known_top = top_body.get_known_dofs();
 
 	const size_t total = n1 + n2 + n_lambda;
 
@@ -958,14 +926,14 @@ std::vector<double> solve_mortar_contact(
 
 	for (size_t i = 0; i < n1; ++i)
 		for (size_t j = 0; j < n_lambda; ++j) {
-			Sys[i][n1 + n2 + j] = -M1[i][j];
-			Sys[n1 + n2 + j][i] = -M1[i][j];
+			Sys[i][n1 + n2 + j] = M1[i][j];
+			Sys[n1 + n2 + j][i] = M1[i][j];
 		}
 	
 	for (size_t i = 0; i < n2; ++i)
 		for (size_t j = 0; j < n_lambda; ++j) {
-			Sys[n1 + i][n1 + n2 + j] = M2[i][j];
-			Sys[n1 + n2 + j][n1 + i] = M2[i][j];
+			Sys[n1 + i][n1 + n2 + j] = -M2[i][j];
+			Sys[n1 + n2 + j][n1 + i] = -M2[i][j];
 		}
 
 	auto apply_known_dof = [&](size_t dof, double value) {
@@ -974,13 +942,6 @@ std::vector<double> solve_mortar_contact(
 
 		Sys[dof][dof] = 1;
 		rhs[dof] = value;
-		};
-
-	auto dof_in_contact = [&](size_t dof, const std::vector<size_t>& node_vec) {
-		for (const auto& node : node_vec)
-			if (2 * node == dof)
-				return true;
-		return false;
 		};
 
 	for (const auto& [dof, value] : known_bottom) 
@@ -993,8 +954,8 @@ std::vector<double> solve_mortar_contact(
 	std::cout << "\n\n";
 	for (int i = 0; i < rhs.size(); ++i)
 		std::cout << rhs[i] << '\n';*/
+
 	return solveWithLU(Sys, rhs);
-	//return solveGaussFullPivot(Sys, rhs);
 }
 
 std::vector<Point> FSEM::find_answer(const std::vector<double>& coefs, int start) {
