@@ -22,24 +22,40 @@ vec_function get_func(double nu, double E) {
 //    return{ sin(M_PI*p.x), 0 };
 //}
 
+//vec_function ans(double nu, double E) {
+//    return [nu, E](const Point& p) {
+//        double mu = E / (2 * (1 + nu));
+//        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+//        const double& x = p.x, & y = p.y;
+//
+//        //     x2      y2      x        y        c
+//        double a1 = 0, a3 = 0, a4 = 2, a5 = -3, a6 = 1;
+//        double b1 = 0, b3 = 0, b4 = 3, b5 = 2, b6 = 4;
+//
+//        double a2 = -(2 * mu * b1 + (4 * mu + 2 * lambda) * b3) / (lambda + mu),
+//            b2 = -(2 * mu * a3 + (4 * mu + 2 * lambda) * a1) / (lambda + mu);
+//
+//        return Point{ 
+//            a1 * x * x + a2 * x * y + a3 * y * y + a4 * x + a5 * y + a6,
+//            b1* x* x + b2 * x * y + b3 * y * y + b4 * x + b5 * y + b6
+//        };
+//    };
+//}
+
 vec_function ans(double nu, double E) {
     return [nu, E](const Point& p) {
         double mu = E / (2 * (1 + nu));
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
         const double& x = p.x, & y = p.y;
 
-        //     x2      y2      x        y        c
-        double a1 = 0, a3 = 0, a4 = 1, a5 = 0, a6 = 0;
-        double b1 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-
-        double a2 = -(2 * mu * b1 + (4 * mu + 2 * lambda) * b3) / (lambda + mu),
-            b2 = -(2 * mu * a3 + (4 * mu + 2 * lambda) * a1) / (lambda + mu);
-
-        return Point{ 
-            a1 * x * x + a2 * x * y + a3 * y * y + a4 * x + a5 * y + a6,
-            b1* x* x + b2 * x * y + b3 * y * y + b4 * x + b5 * y + b6
+        return Point{
+            5.0 * x * x * x * x
+         - 30.0 * x * x * (y - 2.0) * (y - 2.0)
+         + 5.0 * (y - 2.0) * (y - 2.0) * (y - 2.0) * (y - 2.0),
+            -20.0 * x * x * x * (y - 2.0)
+         + 20.0 * x * (y - 2.0) * (y - 2.0) * (y - 2.0)
         };
-    };
+        };
 }
 
 
@@ -61,11 +77,12 @@ int main() {
     top.construct_basis();
 
     // Нижнее тело: фиксируем низ, остальные стороны свободны.
-    bottom.set_bc1('S', ans(nu, E));
     bottom.set_bc1('W', ans(nu, E));
-    //bottom.set_bc1('E', ans(nu, E));
 
-   bottom.construct_f_bc2({ 0, 0, 1, 0 }, {
+    bottom.set_bc1('E', ans(nu, E));
+    bottom.set_bc1('S', ans(nu, E));
+
+   /*bottom.construct_f_bc2({ 0, 0, 1, 0 }, {
         zero,
 
         zero,
@@ -73,17 +90,17 @@ int main() {
         [&](const Point& p) {
         double mu = E / (2 * (1 + nu));
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{ lambda + 2 * mu, 0 }; },
+        return Point{ (lambda + 2 * mu) * 2 + 2 * lambda, 0}; },
 
         zero
-    });
+    });*/
 
     // Верхнее тело: задаем внешнюю нагрузку сверху.
     top.set_bc1('W', ans(nu, E));
     top.set_bc1('N', ans(nu, E));
-    //top.set_bc1('E', ans(nu, E));
+    top.set_bc1('E', ans(nu, E));
 
-    top.construct_f_bc2({ 0, 0, 1, 0 }, {
+    /*top.construct_f_bc2({ 0, 0, 1, 0 }, {
         zero,
 
         zero,
@@ -91,10 +108,10 @@ int main() {
         [&](const Point& p) {
         double mu = E / (2 * (1 + nu));
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{ lambda + 2 * mu, 0 }; },
+        return Point{ (lambda + 2 * mu) * 2 + 2 * lambda, 0}; },
 
         zero
-        });
+        });*/
 
     std::vector<double> rhs_bottom = bottom.get_f();
     std::vector<double> rhs_top = top.get_f();

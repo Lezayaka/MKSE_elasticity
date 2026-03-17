@@ -270,11 +270,11 @@ void FEM::bc2_side(lambda_func j, int start, int finish, double len,
 		p_vec[2 * j(i + 1)] += integral.x;
 		p_vec[2 * j(i + 1) + 1] += integral.y;
 		
-		if (!prev_side)
+		/*if (!prev_side)
 			p_vec[2 * j(start)] = p_vec[2 * j(start) + 1] = 0;
 
 		if (!next_side)
-			p_vec[2 * j(finish)] = p_vec[2 * j(finish) + 1] = 0;
+			p_vec[2 * j(finish)] = p_vec[2 * j(finish) + 1] = 0;*/
 	}
 }
 

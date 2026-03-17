@@ -532,9 +532,11 @@ void FSEM::set_bc1(char side, const vec_function& g) {
 		for (size_t i = n_side_x + n_side_y; i <= n_side_x + 2 * n_side_y; ++i)
 			basis_coefficients[i] = g(nodes[i]);
 
-	else 
+	else {
 		for (size_t i = n_side_x + 2 * n_side_y; i < 2 * n_side_x + 2 * n_side_y; ++i)
 			basis_coefficients[i] = g(nodes[i]);
+		basis_coefficients[0] = g(nodes[0]);
+	}
 }
 
 void FSEM::calculate_coef_Matrix_bc2(const int finish, const int i,
@@ -950,10 +952,10 @@ std::vector<double> solve_mortar_contact(
 	for (const auto& [dof, value] : known_top)
 		apply_known_dof(n1 + dof, value);
 
-	/*Sys.print();
+	Sys.print();
 	std::cout << "\n\n";
 	for (int i = 0; i < rhs.size(); ++i)
-		std::cout << rhs[i] << '\n';*/
+		std::cout << rhs[i] << '\n';
 
 	return solveWithLU(Sys, rhs);
 }
