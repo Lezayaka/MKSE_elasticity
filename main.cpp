@@ -62,21 +62,21 @@ void save_displacement_component(
 //        };
 //}
 
-vec_function ans(double nu, double E) {
-    return [nu, E](const Point& p) {
-        double mu = E / (2 * (1 + nu));
-        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        const double& x = p.x, & y = p.y;
-
-        return Point{
-            -((lambda + 2.0 * mu) / (2.0 * lambda)) * x * x
-           - (4.0 * (lambda + mu) / lambda) * y
-           + ((3.0 * lambda + 4.0 * mu) / (2.0 * lambda)) * y * y,
-
-            x * y
-        };
-        };
-}
+//vec_function ans(double nu, double E) {
+//    return [nu, E](const Point& p) {
+//        double mu = E / (2 * (1 + nu));
+//        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+//        const double& x = p.x, & y = p.y;
+//
+//        return Point{
+//            -((lambda + 2.0 * mu) / (2.0 * lambda)) * x * x
+//           - (4.0 * (lambda + mu) / lambda) * y
+//           + ((3.0 * lambda + 4.0 * mu) / (2.0 * lambda)) * y * y,
+//
+//            x * y
+//        };
+//        };
+//}
 
 
 int main() {
@@ -84,23 +84,23 @@ int main() {
     double nu = 0.3;
 
     Point bottom_a = { 0, 0 }, bottom_b = { 4, 1 };
-    Point top_a = { 0, 1 }, top_b = { 2, 3 };
+    Point top_a = { 1, 1 }, top_b = { 3, 3 };
 
-    auto ANS = ans(nu, E);
+    //auto ANS = ans(nu, E);
 
-    size_t n_x_b = 5, n_x_t = 3, n_y = 3;
+    size_t n_x_b = 17, n_x_t = 9, n_y = 3;
 
-    FSEM bottom(E, nu, bottom_a, bottom_b, n_x_b, n_y);
-    FSEM top(E, nu, top_a, top_b, n_x_t, n_y);
+    FSEM bottom(E, nu, bottom_a, bottom_b, n_x_b, 5);
+    FSEM top(E, nu, top_a, top_b, n_x_t, 9);
 
     bottom.construct_basis();
     top.construct_basis();
 
     // Нижнее тело: фиксируем низ, остальные стороны свободны.
-    bottom.set_bc1('W', ans(nu, E));
+    //bottom.set_bc1('W', ans(nu, E));
 
-    bottom.set_bc1('E', ans(nu, E));
-    bottom.set_bc1('S', ans(nu, E));
+    //bottom.set_bc1('E', ans(nu, E));
+    bottom.set_bc1('S', zero);
 
     /*bottom.construct_f_bc2({ 0, 0, 1, 0 }, {
         zero,
@@ -116,9 +116,9 @@ int main() {
      });*/
 
      // Верхнее тело: задаем внешнюю нагрузку сверху.
-    top.set_bc1('W', ans(nu, E));
-    //top.set_bc1('N', ans(nu, E));
-    top.set_bc1('E', ans(nu, E));
+    // top.set_bc1('W', ans(nu, E));
+    // top.set_bc1('N', ans(nu, E));
+    //top.set_bc1('E', ans(nu, E));
 
 
     top.construct_f_bc2({ 0, 1, 0, 0 }, {
@@ -127,7 +127,7 @@ int main() {
         [&](const Point& p) {
         double mu = E / (2 * (1 + nu));
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{ 8 * mu * (lambda + mu) / lambda, 0}; },
+        return Point{ 0, -1e+10}; },
 
         zero,
 
@@ -154,7 +154,7 @@ int main() {
     const auto top_contact_nodes = top.get_side_fem_nodes('S');
     const size_t n_contact = std::min(bottom_contact_nodes.size(), top_contact_nodes.size());
 
-    std::cout << "\nContact surface values:\n";
+    /*std::cout << "\nContact surface values:\n";
     std::cout << "id\tpoint\tu_bottom\tu_top\tu_exact(one-body)\n";
 
     for (size_t i = 0; i < n_contact; ++i) {
@@ -168,29 +168,29 @@ int main() {
         std::cout << i << "\t" << bottom_contact_point
             << "\t" << res_bottom[bottom_contact_id]
             << "\t" << res_top[top_contact_id]
-            << "\t" << exact_contact_value << "\n";
-    }
-
-    //std::cout << "\nu_bottom solution:\n";
-    //for (size_t i = 0; i != res_bottom.size(); ++i) {
-    //    //if (std::fabs(res_bottom[i].x - ANS((bottom.fem)[i]).x) > 1e-7 ||
-    //      //  std::fabs(res_bottom[i].y - ANS((bottom.fem)[i]).y) > 1e-7)
-    //        std::cout << i << ": " << res_bottom[i] << '\t' << ANS((bottom.fem)[i]) << '\n';
+            << "\t" << exact_contact_value << "\n";*/
     //}
 
-    //std::cout << "\nu_top solution:\n";
-    //for (size_t i = 0; i != res_top.size(); ++i)
-    //    //if (std::fabs(res_top[i].x - ANS((top.fem)[i]).x) > 1e-7 ||
-    //      //  std::fabs(res_top[i].y - ANS((top.fem)[i]).y) > 1e-7)
-    //        std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';
+    std::cout << "\nu_bottom solution:\n";
+    for (size_t i = 0; i != res_bottom.size(); ++i) {
+        //if (std::fabs(res_bottom[i].x - ANS((bottom.fem)[i]).x) > 1e-7 ||
+          //  std::fabs(res_bottom[i].y - ANS((bottom.fem)[i]).y) > 1e-7)
+        std::cout << i << ": " << res_bottom[i] << '\n';// << '\t' << ANS((bottom.fem)[i]) << '\n';
+    }
 
-    /*save_displacement_component("bottom_displacement_x.txt", bottom.fem, res_bottom, 'x');
+    std::cout << "\nu_top solution:\n";
+    for (size_t i = 0; i != res_top.size(); ++i)
+        //if (std::fabs(res_top[i].x - ANS((top.fem)[i]).x) > 1e-7 ||
+          //  std::fabs(res_top[i].y - ANS((top.fem)[i]).y) > 1e-7)
+            std::cout << i << ": " << res_top[i] << '\n';// << '\t' << ANS((top.fem)[i]) << '\n';
+
+    save_displacement_component("bottom_displacement_x.txt", bottom.fem, res_bottom, 'x');
     save_displacement_component("bottom_displacement_y.txt", bottom.fem, res_bottom, 'y');
     save_displacement_component("top_displacement_x.txt", top.fem, res_top, 'x');
-    save_displacement_component("top_displacement_y.txt", top.fem, res_top, 'y');*/
+    save_displacement_component("top_displacement_y.txt", top.fem, res_top, 'y');
 
     // Расчет и вывод нормы ошибки
-    double bottom_numerator = 0.0, bottom_denominator = 0.0;
+   /* double bottom_numerator = 0.0, bottom_denominator = 0.0;
 
     for (size_t i = 0; i != res_bottom.size(); ++i) {
         Point U = ANS((bottom.fem)[i]);
@@ -216,7 +216,7 @@ int main() {
         ? sqrt(top_numerator / top_denominator)
         : 0.0;
 
-    std::cout << "Reletive u_top: " << rel_top << "\n";
+    std::cout << "Reletive u_top: " << rel_top << "\n";*/
 
     return 0;
 }
