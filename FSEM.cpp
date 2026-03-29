@@ -952,10 +952,10 @@ std::vector<double> solve_mortar_contact(
 	for (const auto& [dof, value] : known_top)
 		apply_known_dof(n1 + dof, value);
 
-	Sys.print();
+	/*Sys.print();
 	std::cout << "\n\n";
 	for (int i = 0; i < rhs.size(); ++i)
-		std::cout << rhs[i] << '\n';
+		std::cout << rhs[i] << '\n';*/
 
 	return solveWithLU(Sys, rhs);
 }

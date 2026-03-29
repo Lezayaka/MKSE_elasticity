@@ -2,6 +2,9 @@
 #include <numbers>
 #include <cmath>
 #include <math.h>
+#include <fstream>
+#include <iomanip>
+#include <string>
 
 #define M_PI 3.14159265358979323846
 
@@ -15,6 +18,28 @@ vec_function get_func(double nu, double E) {
 
         return Point{0, 0};
     };
+}
+
+void save_displacement_component(
+    const std::string& file_name,
+    const FEM& mesh,
+    const std::vector<Point>& displacement_field,
+    char component) {
+
+    std::ofstream out(file_name);
+    if (!out.is_open()) {
+        std::cerr << "Failed to open output file: " << file_name << '\n';
+        return;
+    }
+
+    out << std::setprecision(16);
+    const size_t n = std::min(mesh.psize(), displacement_field.size());
+    for (size_t i = 0; i < n; ++i) {
+        const Point& p = mesh[i];
+        const Point& u = displacement_field[i];
+        const double value = (component == 'x') ? u.x : u.y;
+        out << p.x << " " << p.y << " " << value << "\n";
+    }
 }
 
 // Точное решение
@@ -42,6 +67,19 @@ vec_function get_func(double nu, double E) {
 //    };
 //}
 
+//vec_function ans(double nu, double E) {
+//    return [nu, E](const Point& p) {
+//        double mu = E / (2 * (1 + nu));
+//        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+//        const double& x = p.x, & y = p.y;
+//
+//        return Point{
+//            2.0 * x + x * x * x - 3.0 * x * (y - 2.0) * (y - 2.0),
+//            -2.0 * (y - 2.0) - 3.0 * x * x * (y - 2.0) + pow(y - 2.0, 3)
+//        };
+//        };
+//}
+
 vec_function ans(double nu, double E) {
     return [nu, E](const Point& p) {
         double mu = E / (2 * (1 + nu));
@@ -49,11 +87,8 @@ vec_function ans(double nu, double E) {
         const double& x = p.x, & y = p.y;
 
         return Point{
-            5.0 * x * x * x * x
-         - 30.0 * x * x * (y - 2.0) * (y - 2.0)
-         + 5.0 * (y - 2.0) * (y - 2.0) * (y - 2.0) * (y - 2.0),
-            -20.0 * x * x * x * (y - 2.0)
-         + 20.0 * x * (y - 2.0) * (y - 2.0) * (y - 2.0)
+            std::exp(x)* std::cos(y - 0.5),
+            -std::exp(x) * std::sin(y - 0.5)
         };
         };
 }
@@ -63,12 +98,12 @@ int main() {
     double E = 21e+10;
     double nu = 0.3;
 
-    Point bottom_a = { 0, 0 }, bottom_b = { 4, 2 };
-    Point top_a = { 0, 2 }, top_b = { 4, 4 };
+    Point bottom_a = { 0, 0 }, bottom_b = { 1, 0.5 };
+    Point top_a = { 0, 0.5 }, top_b = { 1, 1 };
 
     auto ANS = ans(nu, E);
 
-    size_t n_x = 3, n_y = 3;
+    size_t n_x = 15, n_y = 15;
 
     FSEM bottom(E, nu, bottom_a, bottom_b, n_x, n_y);
     FSEM top(E, nu, top_a, top_b, n_x, n_y);
@@ -99,6 +134,7 @@ int main() {
     top.set_bc1('W', ans(nu, E));
     top.set_bc1('N', ans(nu, E));
     top.set_bc1('E', ans(nu, E));
+
 
     /*top.construct_f_bc2({ 0, 0, 1, 0 }, {
         zero,
@@ -150,40 +186,62 @@ int main() {
 
     }
 
-    std::cout << "\nu_bottom solution:\n";
-    for (size_t i = 0; i != res_bottom.size(); ++i)
-        std::cout << i << ": " << res_bottom[i] << '\t' << ANS((bottom.fem)[i]) << '\n';
+    /*std::cout << "\nu_bottom solution:\n";
+    for (size_t i = 0; i != res_bottom.size(); ++i) {
+        if (std::fabs(res_bottom[i].x - ANS((bottom.fem)[i]).x) > 1e-6 || 
+            std::fabs(res_bottom[i].y - ANS((bottom.fem)[i]).y) > 1e-6)
+            std::cout << i << ": " << res_bottom[i] << '\t' << ANS((bottom.fem)[i]) << '\n';
+    }
 
     std::cout << "\nu_top solution:\n";
     for (size_t i = 0; i != res_top.size(); ++i)
-        std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';
+        if (std::fabs(res_top[i].x - ANS((top.fem)[i]).x) > 1e-6 ||
+            std::fabs(res_top[i].y - ANS((top.fem)[i]).y) > 1e-6)
+            std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';*/
+
+    save_displacement_component("bottom_displacement_x.txt", bottom.fem, res_bottom, 'x');
+    save_displacement_component("bottom_displacement_y.txt", bottom.fem, res_bottom, 'y');
+    save_displacement_component("top_displacement_x.txt", top.fem, res_top, 'x');
+    save_displacement_component("top_displacement_y.txt", top.fem, res_top, 'y');
 
     // Расчет и вывод нормы ошибки
-    double max_x = 0, max_y = 0;
+    //double max_x = 0, max_y = 0;
+    double bottom_numerator = 0.0, bottom_denominator = 0.0;
 
     for (size_t i = 0; i != res_bottom.size(); ++i) {
         Point U = ANS((bottom.fem)[i]);
-        if (fabs(U.x) > 1e-15 and max_x < abs((U.x - res_bottom[i].x) / U.x))
-            max_x = abs((U.x - res_bottom[i].x) / U.x);
-        if (fabs(U.y) > 1e-15 and max_y < abs((U.y - res_bottom[i].y) / U.y))
-            max_y = abs((U.y - res_bottom[i].y) / U.y);
+        /*if (fabs(U.x) > 1e-15 and max_x < abs((U.x - res_bottom[i].x)))
+            max_x = abs((U.x - res_bottom[i].x));
+        if (fabs(U.y) > 1e-15 and max_y < abs((U.y - res_bottom[i].y) ))
+            max_y = abs((U.y - res_bottom[i].y));*/
+        Point diff = res_bottom[i] - U;
+        bottom_numerator += diff.x * diff.x + diff.y * diff.y;
+        bottom_denominator += U.x * U.x + U.y * U.y;
     }
+    double rel_bottom = (bottom_denominator > 1e-30)
+        ? sqrt(bottom_numerator / bottom_denominator)
+        : 0.0;
 
-    std::cout << "Reletive u_bottom: ";
-    std::cout << std::max(max_x, max_y) << "\n";
+    std::cout << "Reletive u_bottom: " << rel_bottom << "\n";
 
-    max_x = 0, max_y = 0;
+    //max_x = 0, max_y = 0;
+    double top_numerator = 0.0, top_denominator = 0.0;
 
     for (size_t i = 0; i != res_top.size(); ++i) {
-        Point U = ANS((top.fem)[i]);
-        if (fabs(U.x) > 1e-15 and max_x < abs((U.x - res_top[i].x) / U.x))
-            max_x = abs((U.x - res_top[i].x) / U.x);
-        if (fabs(U.y) > 1e-15 and max_y < abs((U.y - res_top[i].y) / U.y))
-            max_y = abs((U.y - res_top[i].y) / U.y);
+        Point U = ANS((top.fem)[i]);/*
+        if (fabs(U.x) > 1e-15 and max_x < abs((U.x - res_top[i].x)))
+            max_x = abs((U.x - res_top[i].x));
+        if (fabs(U.y) > 1e-15 and max_y < abs((U.y - res_top[i].y)))
+            max_y = abs((U.y - res_top[i].y));*/
+        Point diff = res_top[i] - U;
+        top_numerator += diff.x * diff.x + diff.y * diff.y;
+        top_denominator += U.x * U.x + U.y * U.y;
     }
+    double rel_top = (top_denominator > 1e-30)
+        ? sqrt(top_numerator / top_denominator)
+        : 0.0;
 
-    std::cout << "Reletive u_top: ";
-    std::cout << std::max(max_x, max_y) << "\n";
+    std::cout << "Reletive u_top: " << rel_top << "\n";
 
     return 0;
 }
