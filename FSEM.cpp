@@ -1,5 +1,6 @@
 #include "Headers.h"
 #include <array>
+#include <stdexcept>
 
 Point zero(const Point& p) {
 	return { 0, 0 };
@@ -857,7 +858,40 @@ std::vector<double> solve_mortar_contact(
 	const size_t n1 = A1.size();
 	const size_t n2 = A2.size();
 
-	const size_t n_lambda = side_bottom.size();
+	std::vector<size_t> side_bottom_contact;
+	std::vector<size_t> side_top_contact;
+	std::vector<size_t> fem_bottom_contact;
+	std::vector<size_t> fem_top_contact;
+
+	side_bottom_contact.reserve(side_bottom.size());
+	side_top_contact.reserve(side_top.size());
+	fem_bottom_contact.reserve(fem_bottom.size());
+	fem_top_contact.reserve(fem_top.size());
+
+	size_t i_bottom = 0;
+	size_t i_top = 0;
+	while (i_bottom < side_bottom.size() && i_top < side_top.size()) {
+		double xb = bottom_body[side_bottom[i_bottom]].x;
+		double xt = top_body[side_top[i_top]].x;
+		
+		if (fabs(xb - xt) < 1e-12) {
+			side_bottom_contact.push_back(side_bottom[i_bottom]);
+			side_top_contact.push_back(side_top[i_top]);
+			fem_bottom_contact.push_back(fem_bottom[i_bottom]);
+			fem_top_contact.push_back(fem_top[i_top]);
+			++i_bottom;
+			++i_top;
+		}
+		else if (xb < xt)
+			++i_bottom;
+		else
+			++i_top;
+	}
+
+	if (side_bottom_contact.size() < 2)
+		throw std::runtime_error("Contact boundary has less than two matching nodes.");
+
+	const size_t n_lambda = side_bottom_contact.size();
 
 	const auto known_bottom = bottom_body.get_known_dofs();
 	const auto known_top = top_body.get_known_dofs();
@@ -868,7 +902,7 @@ std::vector<double> solve_mortar_contact(
 	// узлы на контактной поверхности
 	std::vector<double> s(n_lambda);
 	for (size_t i = 0; i < n_lambda; ++i)
-		s[i] = bottom_body[side_bottom[i]].x;
+		s[i] = bottom_body[side_bottom_contact[i]].x;
 
 	for (size_t seg = 0; seg + 1 < n_lambda; ++seg) {
 		double x_left = s[seg];
@@ -876,13 +910,13 @@ std::vector<double> solve_mortar_contact(
 		double len = x_right - x_left;
 		double x_mid = 0.5 * (x_left + x_right);
 
-		for (size_t j = 0; j < side_bottom.size(); ++j) {
+		for (size_t j = 0; j < side_bottom_contact.size(); ++j) {
 			
-			const size_t node = side_bottom[j];
-			double N_val_x = 0.5 * (basis1[2 * node][fem_bottom[seg]].y +
-				basis1[2 * node][fem_bottom[seg + 1]].y);
-			double N_val_y = 0.5 * (basis1[2 * node + 1][fem_bottom[seg]].y +
-				basis1[2 * node + 1][fem_bottom[seg + 1]].y);
+			const size_t node = side_bottom_contact[j];
+			double N_val_x = 0.5 * (basis1[2 * node][fem_bottom_contact[seg]].y +
+				basis1[2 * node][fem_bottom_contact[seg + 1]].y);
+			double N_val_y = 0.5 * (basis1[2 * node + 1][fem_bottom_contact[seg]].y +
+				basis1[2 * node + 1][fem_bottom_contact[seg + 1]].y);
 
 			for (size_t l = 0; l < n_lambda; ++l) {
 				double L_val = mortar_shape_func(l, s, x_mid);
@@ -892,13 +926,13 @@ std::vector<double> solve_mortar_contact(
 			}
 		}
 
-		for (size_t j = 0; j < side_top.size(); ++j) {
-			const size_t node = side_top[j];
+		for (size_t j = 0; j < side_top_contact.size(); ++j) {
+			const size_t node = side_top_contact[j];
 		
-			double N_val_x = 0.5 * (basis2[2 * node][fem_top[seg]].y +
-				basis2[2 * node][fem_top[seg + 1]].y);
-			double N_val_y = 0.5 * (basis2[2 * node + 1][fem_top[seg]].y +
-				basis2[2 * node + 1][fem_top[seg + 1]].y);
+			double N_val_x = 0.5 * (basis2[2 * node][fem_top_contact[seg]].y +
+				basis2[2 * node][fem_top_contact[seg + 1]].y);
+			double N_val_y = 0.5 * (basis2[2 * node + 1][fem_top_contact[seg]].y +
+				basis2[2 * node + 1][fem_top_contact[seg + 1]].y);
 
 			for (size_t l = 0; l < n_lambda; ++l) {
 				double L_val = mortar_shape_func(l, s, x_mid);

@@ -16,8 +16,8 @@ vec_function get_func(double nu, double E) {
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
         const double& x = p.x, & y = p.y;
 
-        return Point{0, 0};
-    };
+        return Point{ 0, 0 };
+        };
 }
 
 void save_displacement_component(
@@ -42,11 +42,6 @@ void save_displacement_component(
     }
 }
 
-// Точное решение
-//Point ans(const Point& p) {
-//    return{ sin(M_PI*p.x), 0 };
-//}
-
 //vec_function ans(double nu, double E) {
 //    return [nu, E](const Point& p) {
 //        double mu = E / (2 * (1 + nu));
@@ -54,28 +49,15 @@ void save_displacement_component(
 //        const double& x = p.x, & y = p.y;
 //
 //        //     x2      y2      x        y        c
-//        double a1 = 0, a3 = 0, a4 = 2, a5 = -3, a6 = 1;
-//        double b1 = 0, b3 = 0, b4 = 3, b5 = 2, b6 = 4;
+//        double a1 = 0, a3 = 0, a4 = 1, a5 = 0, a6 = 0;
+//        double b1 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
 //
 //        double a2 = -(2 * mu * b1 + (4 * mu + 2 * lambda) * b3) / (lambda + mu),
 //            b2 = -(2 * mu * a3 + (4 * mu + 2 * lambda) * a1) / (lambda + mu);
 //
-//        return Point{ 
-//            a1 * x * x + a2 * x * y + a3 * y * y + a4 * x + a5 * y + a6,
-//            b1* x* x + b2 * x * y + b3 * y * y + b4 * x + b5 * y + b6
-//        };
-//    };
-//}
-
-//vec_function ans(double nu, double E) {
-//    return [nu, E](const Point& p) {
-//        double mu = E / (2 * (1 + nu));
-//        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-//        const double& x = p.x, & y = p.y;
-//
 //        return Point{
-//            2.0 * x + x * x * x - 3.0 * x * (y - 2.0) * (y - 2.0),
-//            -2.0 * (y - 2.0) - 3.0 * x * x * (y - 2.0) + pow(y - 2.0, 3)
+//            a1 * x * x + a2 * x * y + a3 * y * y + a4 * x + a5 * y + a6,
+//            b1 * x * x + b2 * x * y + b3 * y * y + b4 * x + b5 * y + b6
 //        };
 //        };
 //}
@@ -87,8 +69,11 @@ vec_function ans(double nu, double E) {
         const double& x = p.x, & y = p.y;
 
         return Point{
-            std::exp(x)* std::cos(y - 0.5),
-            -std::exp(x) * std::sin(y - 0.5)
+            -((lambda + 2.0 * mu) / (2.0 * lambda)) * x * x
+           - (4.0 * (lambda + mu) / lambda) * y
+           + ((3.0 * lambda + 4.0 * mu) / (2.0 * lambda)) * y * y,
+
+            x * y
         };
         };
 }
@@ -98,15 +83,15 @@ int main() {
     double E = 21e+10;
     double nu = 0.3;
 
-    Point bottom_a = { 0, 0 }, bottom_b = { 1, 0.5 };
-    Point top_a = { 0, 0.5 }, top_b = { 1, 1 };
+    Point bottom_a = { 0, 0 }, bottom_b = { 4, 1 };
+    Point top_a = { 0, 1 }, top_b = { 2, 3 };
 
     auto ANS = ans(nu, E);
 
-    size_t n_x = 15, n_y = 15;
+    size_t n_x_b = 5, n_x_t = 3, n_y = 3;
 
-    FSEM bottom(E, nu, bottom_a, bottom_b, n_x, n_y);
-    FSEM top(E, nu, top_a, top_b, n_x, n_y);
+    FSEM bottom(E, nu, bottom_a, bottom_b, n_x_b, n_y);
+    FSEM top(E, nu, top_a, top_b, n_x_t, n_y);
 
     bottom.construct_basis();
     top.construct_basis();
@@ -117,40 +102,41 @@ int main() {
     bottom.set_bc1('E', ans(nu, E));
     bottom.set_bc1('S', ans(nu, E));
 
-   /*bottom.construct_f_bc2({ 0, 0, 1, 0 }, {
+    /*bottom.construct_f_bc2({ 0, 0, 1, 0 }, {
         zero,
 
-        zero,
+         zero,
 
-        [&](const Point& p) {
+         [&](const Point& p) {
         double mu = E / (2 * (1 + nu));
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{ (lambda + 2 * mu) * 2 + 2 * lambda, 0}; },
+        return Point{ lambda * 3 + 2 * mu, 0}; },
 
-        zero
-    });*/
+         zero
+     });*/
 
-    // Верхнее тело: задаем внешнюю нагрузку сверху.
+     // Верхнее тело: задаем внешнюю нагрузку сверху.
     top.set_bc1('W', ans(nu, E));
-    top.set_bc1('N', ans(nu, E));
+    //top.set_bc1('N', ans(nu, E));
     top.set_bc1('E', ans(nu, E));
 
 
-    /*top.construct_f_bc2({ 0, 0, 1, 0 }, {
-        zero,
-
+    top.construct_f_bc2({ 0, 1, 0, 0 }, {
         zero,
 
         [&](const Point& p) {
         double mu = E / (2 * (1 + nu));
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{ (lambda + 2 * mu) * 2 + 2 * lambda, 0}; },
+        return Point{ 8 * mu * (lambda + mu) / lambda, 0}; },
+
+        zero,
 
         zero
-        });*/
+        });
 
     std::vector<double> rhs_bottom = bottom.get_f();
     std::vector<double> rhs_top = top.get_f();
+
     std::vector<double> solution = solve_mortar_contact(bottom, top, rhs_bottom, rhs_top);
 
     const size_t n1 = bottom.get_K().size();
@@ -183,37 +169,31 @@ int main() {
             << "\t" << res_bottom[bottom_contact_id]
             << "\t" << res_top[top_contact_id]
             << "\t" << exact_contact_value << "\n";
-
     }
 
-    /*std::cout << "\nu_bottom solution:\n";
-    for (size_t i = 0; i != res_bottom.size(); ++i) {
-        if (std::fabs(res_bottom[i].x - ANS((bottom.fem)[i]).x) > 1e-6 || 
-            std::fabs(res_bottom[i].y - ANS((bottom.fem)[i]).y) > 1e-6)
-            std::cout << i << ": " << res_bottom[i] << '\t' << ANS((bottom.fem)[i]) << '\n';
-    }
+    //std::cout << "\nu_bottom solution:\n";
+    //for (size_t i = 0; i != res_bottom.size(); ++i) {
+    //    //if (std::fabs(res_bottom[i].x - ANS((bottom.fem)[i]).x) > 1e-7 ||
+    //      //  std::fabs(res_bottom[i].y - ANS((bottom.fem)[i]).y) > 1e-7)
+    //        std::cout << i << ": " << res_bottom[i] << '\t' << ANS((bottom.fem)[i]) << '\n';
+    //}
 
-    std::cout << "\nu_top solution:\n";
-    for (size_t i = 0; i != res_top.size(); ++i)
-        if (std::fabs(res_top[i].x - ANS((top.fem)[i]).x) > 1e-6 ||
-            std::fabs(res_top[i].y - ANS((top.fem)[i]).y) > 1e-6)
-            std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';*/
+    //std::cout << "\nu_top solution:\n";
+    //for (size_t i = 0; i != res_top.size(); ++i)
+    //    //if (std::fabs(res_top[i].x - ANS((top.fem)[i]).x) > 1e-7 ||
+    //      //  std::fabs(res_top[i].y - ANS((top.fem)[i]).y) > 1e-7)
+    //        std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';
 
-    save_displacement_component("bottom_displacement_x.txt", bottom.fem, res_bottom, 'x');
+    /*save_displacement_component("bottom_displacement_x.txt", bottom.fem, res_bottom, 'x');
     save_displacement_component("bottom_displacement_y.txt", bottom.fem, res_bottom, 'y');
     save_displacement_component("top_displacement_x.txt", top.fem, res_top, 'x');
-    save_displacement_component("top_displacement_y.txt", top.fem, res_top, 'y');
+    save_displacement_component("top_displacement_y.txt", top.fem, res_top, 'y');*/
 
     // Расчет и вывод нормы ошибки
-    //double max_x = 0, max_y = 0;
     double bottom_numerator = 0.0, bottom_denominator = 0.0;
 
     for (size_t i = 0; i != res_bottom.size(); ++i) {
         Point U = ANS((bottom.fem)[i]);
-        /*if (fabs(U.x) > 1e-15 and max_x < abs((U.x - res_bottom[i].x)))
-            max_x = abs((U.x - res_bottom[i].x));
-        if (fabs(U.y) > 1e-15 and max_y < abs((U.y - res_bottom[i].y) ))
-            max_y = abs((U.y - res_bottom[i].y));*/
         Point diff = res_bottom[i] - U;
         bottom_numerator += diff.x * diff.x + diff.y * diff.y;
         bottom_denominator += U.x * U.x + U.y * U.y;
@@ -224,15 +204,10 @@ int main() {
 
     std::cout << "Reletive u_bottom: " << rel_bottom << "\n";
 
-    //max_x = 0, max_y = 0;
     double top_numerator = 0.0, top_denominator = 0.0;
 
     for (size_t i = 0; i != res_top.size(); ++i) {
-        Point U = ANS((top.fem)[i]);/*
-        if (fabs(U.x) > 1e-15 and max_x < abs((U.x - res_top[i].x)))
-            max_x = abs((U.x - res_top[i].x));
-        if (fabs(U.y) > 1e-15 and max_y < abs((U.y - res_top[i].y)))
-            max_y = abs((U.y - res_top[i].y));*/
+        Point U = ANS((top.fem)[i]);
         Point diff = res_top[i] - U;
         top_numerator += diff.x * diff.x + diff.y * diff.y;
         top_denominator += U.x * U.x + U.y * U.y;
