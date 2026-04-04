@@ -33,6 +33,13 @@ struct Rectangle {
 	size_t a, b, c, d;
 };
 
+struct MortarElement {
+	double chi_left;
+	double chi_right;
+	size_t master_element_index;
+	size_t slave_element_index;
+};
+
 // Класс для работы с матрицами
 class Matrix {
 private:
@@ -225,7 +232,8 @@ std::vector<double> solve_mortar_contact(
 	FSEM& bottom_body,
 	FSEM& top_body,
 	const std::vector<double>& rhs_bottom,
-	const std::vector<double>& rhs_top);
+	const std::vector<double>& rhs_top,
+	bool bottom_is_master = true);
 
 std::vector<double> solveWithLU(const Matrix& A,
 	const std::vector<double>& b,

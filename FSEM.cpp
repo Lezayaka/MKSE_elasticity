@@ -1,6 +1,7 @@
 #include "Headers.h"
 #include <array>
 #include <stdexcept>
+#include <cmath>
 
 Point zero(const Point& p) {
 	return { 0, 0 };
@@ -838,17 +839,72 @@ double mortar_shape_func(size_t i, const std::vector<double>& s, double cur) {
 	return 0;
 }
 
+namespace {
+
+	bool almost_equal(double lhs, double rhs, double eps = 1e-12) {
+		return std::fabs(lhs - rhs) < eps;
+	}
+
+	size_t find_segment_index(const std::vector<double>& x_nodes, double x_mid) {
+		if (x_nodes.size() < 2)
+			return 0;
+
+		for (size_t i = 0; i + 1 < x_nodes.size(); ++i) {
+			if (x_mid >= x_nodes[i] - 1e-12 && x_mid <= x_nodes[i + 1] + 1e-12)
+				return i;
+		}
+
+		return x_nodes.size() - 2;
+	}
+
+	void assemble_body_mortar_matrix(
+		Matrix& M,
+		const std::vector<std::vector<Point>>& basis,
+		const std::vector<size_t>& side_nodes,
+		const std::vector<size_t>& fem_side_nodes,
+		const std::vector<MortarElement>& mortar_elements,
+		const std::vector<double>& mortar_nodes,
+		bool use_master_segment) {
+
+		for (const auto& mortar_element : mortar_elements) {
+			const double x_left = mortar_element.chi_left;
+			const double x_right = mortar_element.chi_right;
+			const double len = x_right - x_left;
+			const double x_mid = 0.5 * (x_left + x_right);
+			const size_t body_segment = use_master_segment
+				? mortar_element.master_element_index
+				: mortar_element.slave_element_index;
+
+			for (size_t node_id = 0; node_id < side_nodes.size(); ++node_id) {
+				const size_t node = side_nodes[node_id];
+				const size_t left_fem = fem_side_nodes[body_segment];
+				const size_t right_fem = fem_side_nodes[body_segment + 1];
+				double N_val_x = 0.5 * (basis[2 * node][left_fem].y + basis[2 * node][right_fem].y);
+				double N_val_y = 0.5 * (basis[2 * node + 1][left_fem].y + basis[2 * node + 1][right_fem].y);
+
+				for (size_t l = 0; l < mortar_nodes.size(); ++l) {
+					double L_val = mortar_shape_func(l, mortar_nodes, x_mid);
+					M[2 * node][l] += N_val_x * L_val * len;
+					M[2 * node + 1][l] += N_val_y* L_val * len;
+				}
+			}
+		}
+	}
+
+}
+
 std::vector<double> solve_mortar_contact(
 	FSEM& bottom_body,
 	FSEM& top_body,
 	const std::vector<double>& rhs_bottom,
-	const std::vector<double>& rhs_top) {
+	const std::vector<double>& rhs_top,
+	bool bottom_is_master) {
 
 	Matrix A1 = bottom_body.get_K();
 	Matrix A2 = top_body.get_K();
 	
-	const auto& basis1 = bottom_body.get_basis();
-	const auto& basis2 = top_body.get_basis();
+	const auto& basis_1 = bottom_body.get_basis();
+	const auto& basis_2 = top_body.get_basis();
 	
 	std::vector<size_t> side_bottom = bottom_body.get_side_nodes('N');
 	std::vector<size_t> side_top = top_body.get_side_nodes('S');

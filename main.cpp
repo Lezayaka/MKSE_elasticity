@@ -83,21 +83,22 @@ int main() {
     double E = 21e+10;
     double nu = 0.3;
 
-    Point bottom_a = { 0, 0 }, bottom_b = { 4, 1 };
-    Point top_a = { 1, 1 }, top_b = { 3, 3 };
+    Point bottom_a = { 0, 0 }, bottom_b = { 3, 1 };
+    Point top_a = { 0, 1 }, top_b = { 2, 4 };
 
     //auto ANS = ans(nu, E);
 
-    size_t n_x_b = 17, n_x_t = 9, n_y = 3;
+    size_t n_x_b = 13, n_x_t = 9, n_y = 3;
 
-    FSEM bottom(E, nu, bottom_a, bottom_b, n_x_b, 5);
-    FSEM top(E, nu, top_a, top_b, n_x_t, 9);
+    FSEM bottom(E, nu, bottom_a, bottom_b, n_x_b, 4);
+    FSEM top(E, nu, top_a, top_b, n_x_t, 10);
 
     bottom.construct_basis();
     top.construct_basis();
 
     // Нижнее тело: фиксируем низ, остальные стороны свободны.
-    //bottom.set_bc1('W', ans(nu, E));
+    bottom.set_bc1('W', [&](const Point& p) {
+        return Point{ 0, NAN }; });
 
     //bottom.set_bc1('E', ans(nu, E));
     bottom.set_bc1('S', zero);
@@ -116,7 +117,8 @@ int main() {
      });*/
 
      // Верхнее тело: задаем внешнюю нагрузку сверху.
-    // top.set_bc1('W', ans(nu, E));
+    top.set_bc1('W', [&](const Point& p) {
+        return Point{ 0, NAN }; });
     // top.set_bc1('N', ans(nu, E));
     //top.set_bc1('E', ans(nu, E));
 
@@ -127,7 +129,7 @@ int main() {
         [&](const Point& p) {
         double mu = E / (2 * (1 + nu));
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{ 0, -1e+10}; },
+        return Point{ 0, -2e+10}; },
 
         zero,
 
