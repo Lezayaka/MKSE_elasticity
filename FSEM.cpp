@@ -765,14 +765,19 @@ std::vector<size_t> FSEM::get_side_nodes(char side) const {
 	else if (side == 'E')
 		value = b.x;
 
+	if (hor) {
+		side_nodes.reserve(n_side_x + 1);
+	}
+	else {
+		side_nodes.reserve(n_side_y + 1);
+	}
+
 	for (size_t i = 0; i < nodes.size(); ++i) {
 		if (hor) {
-			side_nodes.reserve(n_side_x + 1);
 			if (fabs(nodes[i].y - value) < 1e-10)
 				side_nodes.push_back(i);
 		}
 		else {
-			side_nodes.reserve(n_side_y + 1);
 			if (fabs(nodes[i].x - value) < 1e-10)
 				side_nodes.push_back(i);
 		}
@@ -903,8 +908,8 @@ std::vector<double> solve_mortar_contact(
 	Matrix A1 = bottom_body.get_K();
 	Matrix A2 = top_body.get_K();
 	
-	const auto& basis_1 = bottom_body.get_basis();
-	const auto& basis_2 = top_body.get_basis();
+	const auto& basis1 = bottom_body.get_basis();
+	const auto& basis2 = top_body.get_basis();
 	
 	std::vector<size_t> side_bottom = bottom_body.get_side_nodes('N');
 	std::vector<size_t> side_top = top_body.get_side_nodes('S');
