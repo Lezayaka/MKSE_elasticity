@@ -903,8 +903,8 @@ std::vector<double> solve_mortar_contact(
 	Matrix A1 = bottom_body.get_K();
 	Matrix A2 = top_body.get_K();
 	
-	const auto& basis_1 = bottom_body.get_basis();
-	const auto& basis_2 = top_body.get_basis();
+	const auto& basis_bottom = bottom_body.get_basis();
+	const auto& basis_top = top_body.get_basis();
 	
 	std::vector<size_t> side_bottom = bottom_body.get_side_nodes('N');
 	std::vector<size_t> side_top = top_body.get_side_nodes('S');
@@ -914,40 +914,30 @@ std::vector<double> solve_mortar_contact(
 	const size_t n1 = A1.size();
 	const size_t n2 = A2.size();
 
-	std::vector<size_t> side_bottom_contact;
-	std::vector<size_t> side_top_contact;
-	std::vector<size_t> fem_bottom_contact;
-	std::vector<size_t> fem_top_contact;
+	std::vector<double> bottom_x(side_bottom.size());
+	std::vector<double> top_x(side_top.size());
+	for (size_t i = 0; i < side_bottom.size(); ++i)
+		bottom_x[i] = bottom_body[side_bottom[i]].x;
+	for (size_t i = 0; i < side_top.size(); ++i)
+		top_x[i] = top_body[side_top[i]].x;
 
-	side_bottom_contact.reserve(side_bottom.size());
-	side_top_contact.reserve(side_top.size());
-	fem_bottom_contact.reserve(fem_bottom.size());
-	fem_top_contact.reserve(fem_top.size());
+	const double contact_left = std::max(bottom_x.front(), top_x.front());
+	const double contact_right = std::min(bottom_x.back(), top_x.back());
 
-	size_t i_bottom = 0;
-	size_t i_top = 0;
-	while (i_bottom < side_bottom.size() && i_top < side_top.size()) {
-		double xb = bottom_body[side_bottom[i_bottom]].x;
-		double xt = top_body[side_top[i_top]].x;
-		
-		if (fabs(xb - xt) < 1e-12) {
-			side_bottom_contact.push_back(side_bottom[i_bottom]);
-			side_top_contact.push_back(side_top[i_top]);
-			fem_bottom_contact.push_back(fem_bottom[i_bottom]);
-			fem_top_contact.push_back(fem_top[i_top]);
-			++i_bottom;
-			++i_top;
-		}
-		else if (xb < xt)
-			++i_bottom;
-		else
-			++i_top;
-	}
+	std::vector<double> mortar_nodes;
+	mortar_nodes.reserve(bottom_x.size() + top_x.size());
+	for (double x : bottom_x)
+		if (x >= contact_left - 1e-12 && x <= contact_right + 1e-12)
+			mortar_nodes.push_back(x);
+	for (double x : top_x)
+		if (x >= contact_left - 1e-12 && x <= contact_right + 1e-12)
+			mortar_nodes.push_back(x);
 
-	if (side_bottom_contact.size() < 2)
-		throw std::runtime_error("Contact boundary has less than two matching nodes.");
+	std::sort(mortar_nodes.begin(), mortar_nodes.end());
+	mortar_nodes.erase(std::unique(mortar_nodes.begin(), mortar_nodes.end(),
+		[](double a, double b) { return almost_equal(a, b); }), mortar_nodes.end());
 
-	const size_t n_lambda = side_bottom_contact.size();
+	const size_t n_lambda = mortar_nodes.size();
 
 	const auto known_bottom = bottom_body.get_known_dofs();
 	const auto known_top = top_body.get_known_dofs();
@@ -955,48 +945,34 @@ std::vector<double> solve_mortar_contact(
 	Matrix M1(n1, n_lambda);
 	Matrix M2(n2, n_lambda);
 
-	// узлы на контактной поверхности
-	std::vector<double> s(n_lambda);
-	for (size_t i = 0; i < n_lambda; ++i)
-		s[i] = bottom_body[side_bottom_contact[i]].x;
+	std::vector<MortarElement> mortar_elements;
+	mortar_elements.reserve(n_lambda > 0 ? n_lambda - 1 : 0);
+	for (size_t seg = 0; seg + 1 < mortar_nodes.size(); ++seg) {
+		const double x_left = mortar_nodes[seg];
+		const double x_right = mortar_nodes[seg + 1];
+		const double x_mid = 0.5 * (x_left + x_right);
 
-	for (size_t seg = 0; seg + 1 < n_lambda; ++seg) {
-		double x_left = s[seg];
-		double x_right = s[seg + 1];
-		double len = x_right - x_left;
-		double x_mid = 0.5 * (x_left + x_right);
+		const size_t master_idx = bottom_is_master
+			? find_segment_index(bottom_x, x_mid)
+			: find_segment_index(top_x, x_mid);
+		const size_t slave_idx = bottom_is_master
+			? find_segment_index(top_x, x_mid)
+			: find_segment_index(bottom_x, x_mid);
 
-		for (size_t j = 0; j < side_bottom_contact.size(); ++j) {
-			
-			const size_t node = side_bottom_contact[j];
-			double N_val_x = 0.5 * (basis1[2 * node][fem_bottom_contact[seg]].y +
-				basis1[2 * node][fem_bottom_contact[seg + 1]].y);
-			double N_val_y = 0.5 * (basis1[2 * node + 1][fem_bottom_contact[seg]].y +
-				basis1[2 * node + 1][fem_bottom_contact[seg + 1]].y);
+		mortar_elements.push_back({ x_left, x_right, master_idx, slave_idx });
+	}
 
-			for (size_t l = 0; l < n_lambda; ++l) {
-				double L_val = mortar_shape_func(l, s, x_mid);
-
-				M1[2 * node][l] += N_val_x * L_val * len;
-				M1[2 * node + 1][l] += N_val_y * L_val * len;
-			}
-		}
-
-		for (size_t j = 0; j < side_top_contact.size(); ++j) {
-			const size_t node = side_top_contact[j];
-		
-			double N_val_x = 0.5 * (basis2[2 * node][fem_top_contact[seg]].y +
-				basis2[2 * node][fem_top_contact[seg + 1]].y);
-			double N_val_y = 0.5 * (basis2[2 * node + 1][fem_top_contact[seg]].y +
-				basis2[2 * node + 1][fem_top_contact[seg + 1]].y);
-
-			for (size_t l = 0; l < n_lambda; ++l) {
-				double L_val = mortar_shape_func(l, s, x_mid);
-
-				M2[2 * node][l] += N_val_x * L_val * len;
-				M2[2 * node + 1][l] += N_val_y * L_val * len;
-			}
-		}
+	if (bottom_is_master) {
+		assemble_body_mortar_matrix(M1, basis_bottom, side_bottom, fem_bottom,
+			mortar_elements, mortar_nodes, true);
+		assemble_body_mortar_matrix(M2, basis_top, side_top, fem_top,
+			mortar_elements, mortar_nodes, false);
+	}
+	else {
+		assemble_body_mortar_matrix(M2, basis_top, side_top, fem_top,
+			mortar_elements, mortar_nodes, true);
+		assemble_body_mortar_matrix(M1, basis_bottom, side_bottom, fem_bottom,
+			mortar_elements, mortar_nodes, false);
 	}
 
 	const size_t total = n1 + n2 + n_lambda;
