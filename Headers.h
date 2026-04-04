@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <vector>
 #include <iostream>
 #include <functional>
@@ -36,8 +36,6 @@ struct Rectangle {
 struct MortarElement {
 	double chi_left;
 	double chi_right;
-	size_t master_element_index;
-	size_t slave_element_index;
 };
 
 // Класс для работы с матрицами
@@ -152,8 +150,8 @@ class FSEM {
 	size_t n_side_y; // количество отрезков на вертикальной границе
 	// координаты узлов, начиная с левого нижнего, идут по часовой стрелке
 	std::vector<Point> nodes; 
-	//int coef_x; // количество узлов сетки для МКЭ по x = n_side_x * coef
-	//int coef_y; // количество узлов сетки для МКЭ по y = n_side_y * coef
+	size_t coef_x; // FEM subdivisions per super-element segment along x
+	size_t coef_y; // FEM subdivisions per super-element segment along y
 
 	// храним сеточные значения базисных функций
 	std::vector<std::vector<Point>> basis;

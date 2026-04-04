@@ -86,8 +86,8 @@ int main() {
 
     auto ANS = ans(nu, E);
 
-    size_t n_bottom_x = 10, n_bottom_y = 3;
-    size_t n_top_x = 10, n_top_y = 3;
+    size_t n_bottom_x = 6, n_bottom_y = 6;
+    size_t n_top_x = 3, n_top_y = 6;
     const bool bottom_is_master = true;
 
     FSEM bottom(E, nu, bottom_a, bottom_b, n_bottom_x, n_bottom_y);
@@ -185,10 +185,10 @@ int main() {
           //  std::fabs(res_top[i].y - ANS((top.fem)[i]).y) > 1e-7)
             std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';
 
-    /*save_displacement_component("bottom_displacement_x.txt", bottom.fem, res_bottom, 'x');
-    save_displacement_component("bottom_displacement_y.txt", bottom.fem, res_bottom, 'y');
-    save_displacement_component("top_displacement_x.txt", top.fem, res_top, 'x');
-    save_displacement_component("top_displacement_y.txt", top.fem, res_top, 'y');*/
+    /*save_displacement_component("results\bottom_displacement_x.txt", bottom.fem, res_bottom, 'x');
+    save_displacement_component("results\bottom_displacement_y.txt", bottom.fem, res_bottom, 'y');
+    save_displacement_component("results\top_displacement_x.txt", top.fem, res_top, 'x');
+    save_displacement_component("results\top_displacement_y.txt", top.fem, res_top, 'y');*/
 
     // Расчет и вывод нормы ошибки
     double bottom_numerator = 0.0, bottom_denominator = 0.0;

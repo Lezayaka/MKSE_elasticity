@@ -14,12 +14,13 @@ Point zero(const Point& p) {
 //	n_side_y(n_y - 1), coef_x(coef_val_x), coef_y(coef_val_y),
 //	fem(a, b, (n_y - 1)* coef_y + 1, (n_x - 1)* coef_x + 1) {
 FSEM::FSEM(double E, double nu, const Point& a, const Point& b,
-	size_t n_x, size_t n_y, int coef_x, int coef_y) :
+	size_t n_x, size_t n_y, int coef_val_x, int coef_val_y) :
 	a(a), b(b), E(E), nu(nu), n_side_x(n_x - 1),
-	n_side_y(n_y - 1), 
-	fem(a, b, (n_y - 1) * coef_y + 1, (n_x - 1)* coef_x + 1),
-	K(2 * (coef_x * (n_x - 1) + 1) * (coef_y * (n_y - 1) + 1)),
-	f(2 * (coef_x * (n_x - 1) + 1) * (coef_y* (n_y - 1) + 1))
+	n_side_y(n_y - 1), coef_x(static_cast<size_t>(coef_val_x)),
+	coef_y(static_cast<size_t>(coef_val_y)),
+	fem(a, b, (n_y - 1) * coef_val_y + 1, (n_x - 1) * coef_val_x + 1),
+	K(2 * (coef_val_x * (n_x - 1) + 1) * (coef_val_y * (n_y - 1) + 1)),
+	f(2 * (coef_val_x * (n_x - 1) + 1) * (coef_val_y * (n_y - 1) + 1))
 	{
 
 	double h_x = (b.x - a.x) / n_side_x, h_y = (b.y - a.y) / n_side_y; // шаг
@@ -789,28 +790,28 @@ std::vector<size_t> FSEM::get_side_nodes(char side) const {
 
 std::vector<size_t> FSEM::get_side_fem_nodes(char side) const {
 	std::vector<size_t> side_nodes;
-	const size_t mx = n_side_x + 1;
-	const size_t ny = n_side_y + 1;
+	const size_t mx = coef_x * n_side_x + 1;
+	const size_t ny = coef_y * n_side_y + 1;
 
 	if (side == 'S') {
-		side_nodes.reserve(mx);
-		for (size_t j = 0; j < mx; ++j)
-			side_nodes.push_back(j);
+		side_nodes.reserve(n_side_x + 1);
+		for (size_t j = 0; j <= n_side_x; ++j)
+			side_nodes.push_back(j * coef_x);
 	}
 	else if (side == 'N') {
-		side_nodes.reserve(mx);
-		for (size_t j = 0; j < mx; ++j)
-			side_nodes.push_back(mx * (ny - 1) + j);
+		side_nodes.reserve(n_side_x + 1);
+		for (size_t j = 0; j <= n_side_x; ++j)
+			side_nodes.push_back(mx * (ny - 1) + j * coef_x);
 	}
 	else if (side == 'W') {
-		side_nodes.reserve(ny);
-		for (size_t i = 0; i < ny; ++i)
-			side_nodes.push_back(i * mx);
+		side_nodes.reserve(n_side_y + 1);
+		for (size_t i = 0; i <= n_side_y; ++i)
+			side_nodes.push_back(i * coef_y * mx);
 	}
 	else if (side == 'E') {
-		side_nodes.reserve(ny);
-		for (size_t i = 0; i < ny; ++i)
-			side_nodes.push_back(i * mx + mx - 1);
+		side_nodes.reserve(n_side_y + 1);
+		for (size_t i = 0; i <= n_side_y; ++i)
+			side_nodes.push_back(i * coef_y * mx + mx - 1);
 	}
 
 	return side_nodes;
@@ -841,20 +842,96 @@ double mortar_shape_func(size_t i, const std::vector<double>& s, double cur) {
 
 namespace {
 
-	bool almost_equal(double lhs, double rhs, double eps = 1e-12) {
+	constexpr double kContactEps = 1e-12;
+	const std::array<double, 2> kGaussPoints = {
+		-0.5773502691896257,
+		 0.5773502691896257
+	};
+
+	bool almost_equal(double lhs, double rhs, double eps = kContactEps) {
 		return std::fabs(lhs - rhs) < eps;
 	}
 
 	size_t find_segment_index(const std::vector<double>& x_nodes, double x_mid) {
 		if (x_nodes.size() < 2)
-			return 0;
+			throw std::runtime_error("Contact boundary has less than two nodes.");
 
 		for (size_t i = 0; i + 1 < x_nodes.size(); ++i) {
-			if (x_mid >= x_nodes[i] - 1e-12 && x_mid <= x_nodes[i + 1] + 1e-12)
+			if (x_mid >= x_nodes[i] - kContactEps && x_mid <= x_nodes[i + 1] + kContactEps)
 				return i;
 		}
 
-		return x_nodes.size() - 2;
+		throw std::runtime_error("Contact quadrature point is outside boundary segmentation.");
+	}
+
+	std::vector<double> collect_overlap_nodes(
+		const std::vector<double>& bottom_x,
+		const std::vector<double>& top_x,
+		double contact_left,
+		double contact_right) {
+
+		std::vector<double> nodes;
+		nodes.reserve(bottom_x.size() + top_x.size() + 2);
+		nodes.push_back(contact_left);
+		nodes.push_back(contact_right);
+
+		auto append_inside = [&](const std::vector<double>& x_nodes) {
+			for (double x : x_nodes)
+				if (x >= contact_left - kContactEps && x <= contact_right + kContactEps)
+					nodes.push_back(x);
+		};
+
+		append_inside(bottom_x);
+		append_inside(top_x);
+
+		std::sort(nodes.begin(), nodes.end());
+		nodes.erase(std::unique(nodes.begin(), nodes.end(),
+			[](double lhs, double rhs) { return almost_equal(lhs, rhs); }), nodes.end());
+		return nodes;
+	}
+
+	std::vector<double> collect_active_lambda_nodes(
+		const std::vector<double>& master_x,
+		double contact_left,
+		double contact_right) {
+
+		std::vector<double> active_nodes;
+		active_nodes.reserve(master_x.size());
+
+		for (size_t i = 0; i < master_x.size(); ++i) {
+			const double support_left = (i == 0) ? master_x[i] : master_x[i - 1];
+			const double support_right = (i + 1 == master_x.size()) ? master_x[i] : master_x[i + 1];
+
+			if (support_right > contact_left + kContactEps &&
+				support_left < contact_right - kContactEps) {
+				active_nodes.push_back(master_x[i]);
+			}
+		}
+
+		return active_nodes;
+	}
+
+	double interpolate_trace_value(
+		const std::vector<Point>& basis_component,
+		const std::vector<size_t>& fem_side_nodes,
+		const std::vector<double>& side_x,
+		double x) {
+
+		if (fem_side_nodes.size() != side_x.size())
+			throw std::runtime_error("Boundary node mapping is inconsistent.");
+
+		const size_t segment = find_segment_index(side_x, x);
+		const double x_left = side_x[segment];
+		const double x_right = side_x[segment + 1];
+		if (almost_equal(x_left, x_right))
+			throw std::runtime_error("Degenerate boundary segment on contact side.");
+
+		const size_t left_fem = fem_side_nodes[segment];
+		const size_t right_fem = fem_side_nodes[segment + 1];
+		const double t = (x - x_left) / (x_right - x_left);
+
+		return (1.0 - t) * basis_component[left_fem].y +
+			t * basis_component[right_fem].y;
 	}
 
 	void assemble_body_mortar_matrix(
@@ -862,30 +939,36 @@ namespace {
 		const std::vector<std::vector<Point>>& basis,
 		const std::vector<size_t>& side_nodes,
 		const std::vector<size_t>& fem_side_nodes,
+		const std::vector<double>& side_x,
 		const std::vector<MortarElement>& mortar_elements,
-		const std::vector<double>& mortar_nodes,
-		bool use_master_segment) {
+		const std::vector<double>& lambda_nodes) {
 
 		for (const auto& mortar_element : mortar_elements) {
 			const double x_left = mortar_element.chi_left;
 			const double x_right = mortar_element.chi_right;
 			const double len = x_right - x_left;
-			const double x_mid = 0.5 * (x_left + x_right);
-			const size_t body_segment = use_master_segment
-				? mortar_element.master_element_index
-				: mortar_element.slave_element_index;
+			if (len <= kContactEps)
+				continue;
 
-			for (size_t node_id = 0; node_id < side_nodes.size(); ++node_id) {
-				const size_t node = side_nodes[node_id];
-				const size_t left_fem = fem_side_nodes[body_segment];
-				const size_t right_fem = fem_side_nodes[body_segment + 1];
-				double N_val_x = 0.5 * (basis[2 * node][left_fem].y + basis[2 * node][right_fem].y);
-				double N_val_y = 0.5 * (basis[2 * node + 1][left_fem].y + basis[2 * node + 1][right_fem].y);
+			const double center = 0.5 * (x_left + x_right);
+			const double half_len = 0.5 * len;
 
-				for (size_t l = 0; l < mortar_nodes.size(); ++l) {
-					double L_val = mortar_shape_func(l, mortar_nodes, x_mid);
-					M[2 * node][l] += N_val_x * L_val * len;
-					M[2 * node + 1][l] += N_val_y* L_val * len;
+			for (double gauss_point : kGaussPoints) {
+				const double x = center + half_len * gauss_point;
+				std::vector<double> lambda_values(lambda_nodes.size());
+				for (size_t l = 0; l < lambda_nodes.size(); ++l)
+					lambda_values[l] = mortar_shape_func(l, lambda_nodes, x);
+
+				for (size_t node : side_nodes) {
+					const double N_val_x = interpolate_trace_value(
+						basis[2 * node], fem_side_nodes, side_x, x);
+					const double N_val_y = interpolate_trace_value(
+						basis[2 * node + 1], fem_side_nodes, side_x, x);
+
+					for (size_t l = 0; l < lambda_nodes.size(); ++l) {
+						M[2 * node][l] += N_val_x * lambda_values[l] * half_len;
+						M[2 * node + 1][l] += N_val_y * lambda_values[l] * half_len;
+					}
 				}
 			}
 		}
@@ -913,6 +996,8 @@ std::vector<double> solve_mortar_contact(
 
 	const size_t n1 = A1.size();
 	const size_t n2 = A2.size();
+	if (side_bottom.size() < 2 || side_top.size() < 2)
+		throw std::runtime_error("Contact boundary has less than two nodes.");
 
 	std::vector<double> bottom_x(side_bottom.size());
 	std::vector<double> top_x(side_top.size());
@@ -923,21 +1008,21 @@ std::vector<double> solve_mortar_contact(
 
 	const double contact_left = std::max(bottom_x.front(), top_x.front());
 	const double contact_right = std::min(bottom_x.back(), top_x.back());
+	if (contact_right - contact_left <= kContactEps)
+		throw std::runtime_error("Contact boundary overlap is empty or degenerate.");
 
-	std::vector<double> mortar_nodes;
-	mortar_nodes.reserve(bottom_x.size() + top_x.size());
-	for (double x : bottom_x)
-		if (x >= contact_left - 1e-12 && x <= contact_right + 1e-12)
-			mortar_nodes.push_back(x);
-	for (double x : top_x)
-		if (x >= contact_left - 1e-12 && x <= contact_right + 1e-12)
-			mortar_nodes.push_back(x);
+	const auto& master_x = bottom_is_master ? bottom_x : top_x;
+	std::vector<double> lambda_nodes = collect_active_lambda_nodes(
+		master_x, contact_left, contact_right);
+	if (lambda_nodes.size() < 2)
+		throw std::runtime_error("Master contact boundary has less than two active nodes.");
 
-	std::sort(mortar_nodes.begin(), mortar_nodes.end());
-	mortar_nodes.erase(std::unique(mortar_nodes.begin(), mortar_nodes.end(),
-		[](double a, double b) { return almost_equal(a, b); }), mortar_nodes.end());
+	std::vector<double> integration_nodes = collect_overlap_nodes(
+		bottom_x, top_x, contact_left, contact_right);
+	if (integration_nodes.size() < 2)
+		throw std::runtime_error("Contact boundary segmentation is degenerate.");
 
-	const size_t n_lambda = mortar_nodes.size();
+	const size_t n_lambda = lambda_nodes.size();
 
 	const auto known_bottom = bottom_body.get_known_dofs();
 	const auto known_top = top_body.get_known_dofs();
@@ -946,34 +1031,14 @@ std::vector<double> solve_mortar_contact(
 	Matrix M2(n2, n_lambda);
 
 	std::vector<MortarElement> mortar_elements;
-	mortar_elements.reserve(n_lambda > 0 ? n_lambda - 1 : 0);
-	for (size_t seg = 0; seg + 1 < mortar_nodes.size(); ++seg) {
-		const double x_left = mortar_nodes[seg];
-		const double x_right = mortar_nodes[seg + 1];
-		const double x_mid = 0.5 * (x_left + x_right);
+	mortar_elements.reserve(integration_nodes.size() - 1);
+	for (size_t seg = 0; seg + 1 < integration_nodes.size(); ++seg)
+		mortar_elements.push_back({ integration_nodes[seg], integration_nodes[seg + 1] });
 
-		const size_t master_idx = bottom_is_master
-			? find_segment_index(bottom_x, x_mid)
-			: find_segment_index(top_x, x_mid);
-		const size_t slave_idx = bottom_is_master
-			? find_segment_index(top_x, x_mid)
-			: find_segment_index(bottom_x, x_mid);
-
-		mortar_elements.push_back({ x_left, x_right, master_idx, slave_idx });
-	}
-
-	if (bottom_is_master) {
-		assemble_body_mortar_matrix(M1, basis_bottom, side_bottom, fem_bottom,
-			mortar_elements, mortar_nodes, true);
-		assemble_body_mortar_matrix(M2, basis_top, side_top, fem_top,
-			mortar_elements, mortar_nodes, false);
-	}
-	else {
-		assemble_body_mortar_matrix(M2, basis_top, side_top, fem_top,
-			mortar_elements, mortar_nodes, true);
-		assemble_body_mortar_matrix(M1, basis_bottom, side_bottom, fem_bottom,
-			mortar_elements, mortar_nodes, false);
-	}
+	assemble_body_mortar_matrix(M1, basis_bottom, side_bottom, fem_bottom,
+		bottom_x, mortar_elements, lambda_nodes);
+	assemble_body_mortar_matrix(M2, basis_top, side_top, fem_top,
+		top_x, mortar_elements, lambda_nodes);
 
 	const size_t total = n1 + n2 + n_lambda;
 
@@ -1017,11 +1082,6 @@ std::vector<double> solve_mortar_contact(
 
 	for (const auto& [dof, value] : known_top)
 		apply_known_dof(n1 + dof, value);
-
-	/*Sys.print();
-	std::cout << "\n\n";
-	for (int i = 0; i < rhs.size(); ++i)
-		std::cout << rhs[i] << '\n';*/
 
 	return solveWithLU(Sys, rhs);
 }
