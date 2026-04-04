@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iomanip>
 #include <string>
+#include <stdexcept>
 
 #define M_PI 3.14159265358979323846
 
@@ -42,27 +43,29 @@ void save_displacement_component(
     }
 }
 
-//vec_function ans(double nu, double E) {
-//    return [nu, E](const Point& p) {
-//        double mu = E / (2 * (1 + nu));
-//        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-//        const double& x = p.x, & y = p.y;
-//
-//        //     x2      y2      x        y        c
-//        double a1 = 0, a3 = 0, a4 = 1, a5 = 0, a6 = 0;
-//        double b1 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-//
-//        double a2 = -(2 * mu * b1 + (4 * mu + 2 * lambda) * b3) / (lambda + mu),
-//            b2 = -(2 * mu * a3 + (4 * mu + 2 * lambda) * a1) / (lambda + mu);
-//
-//        return Point{
-//            a1 * x * x + a2 * x * y + a3 * y * y + a4 * x + a5 * y + a6,
-//            b1 * x * x + b2 * x * y + b3 * y * y + b4 * x + b5 * y + b6
-//        };
-//        };
-//}
+// простые решения
+/*vec_function ans(double nu, double E) {
+    return [nu, E](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        const double& x = p.x, & y = p.y;
 
-vec_function ans(double nu, double E) {
+        //     x2      y2      x        y        c
+        double a1 = 0, a3 = 0, a4 = 1, a5 = 0, a6 = 0;
+        double b1 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+
+        double a2 = -(2 * mu * b1 + (4 * mu + 2 * lambda) * b3) / (lambda + mu),
+            b2 = -(2 * mu * a3 + (4 * mu + 2 * lambda) * a1) / (lambda + mu);
+
+        return Point{
+            a1 * x * x + a2 * x * y + a3 * y * y + a4 * x + a5 * y + a6,
+            b1 * x * x + b2 * x * y + b3 * y * y + b4 * x + b5 * y + b6
+        };
+        };
+}*/
+
+// u = {e(x) cos(y - 0.5), - e(x) sin(y - 0.5)} 
+/*vec_function ans(double nu, double E) {
     return [nu, E](const Point& p) {
         double mu = E / (2 * (1 + nu));
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
@@ -74,20 +77,55 @@ vec_function ans(double nu, double E) {
             -exp(x)* sin(y - 0.5)
         };
         };
+}*/
+
+// пример для разных тел
+vec_function ans(double nu, double E) {
+    return [nu, E](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        const double& x = p.x, & y = p.y;
+
+        return Point{
+            -(lambda + 2 * mu) / (2 * lambda) * x * x -
+            4 * (lambda + mu) / lambda * y +
+            (3 * lambda + 4 * mu) / (2 * lambda) * y * y,
+
+            x * y
+        };
+        };
 }
 
+// u = {3x^2 - 3 (y - 2)^2, -6x(y - 2)}
+/*vec_function ans(double nu, double E) {
+    return [nu, E](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        const double& x = p.x, & y = p.y;
+
+        return Point{
+            3 * x * x - 3 * (y - 2) * (y - 2),
+
+            - 6 * x * (y - 2)
+        };
+        };
+}*/
 
 int main() {
     double E = 21e+10;
     double nu = 0.3;
 
-    Point bottom_a = { 0, 0 }, bottom_b = { 1, 0.5 };
-    Point top_a = { 0, 0.5 }, top_b = { 1, 1 };
+    Point bottom_a = { 0, 0 }, bottom_b = { 4, 1 };
+    Point top_a = { 0, 1 }, top_b = { 2, 3 };
 
     auto ANS = ans(nu, E);
 
-    size_t n_bottom_x = 6, n_bottom_y = 6;
-    size_t n_top_x = 3, n_top_y = 6;
+    // совпадающие сетки
+    //size_t n_bottom_x = 3, n_bottom_y = 3, n_top_x = 3, n_top_y = 3;
+
+    // несовпадающие сетки
+    size_t n_bottom_x = 5, n_bottom_y = 3, n_top_x = 3, n_top_y = 5;
+    //const bool bottom_is_master = false;
     const bool bottom_is_master = true;
 
     FSEM bottom(E, nu, bottom_a, bottom_b, n_bottom_x, n_bottom_y);
@@ -96,38 +134,152 @@ int main() {
     bottom.construct_basis();
     top.construct_basis();
 
-    // Нижнее тело: фиксируем низ, остальные стороны свободны.
-    bottom.set_bc1('W', ANS);
+    // Нижнее тело
+    bottom.set_bc1('W', ANS); 
 
     bottom.set_bc1('E', ANS);
     bottom.set_bc1('S', ANS);
 
-    /*bottom.construct_f_bc2({ 0, 0, 1, 0 }, {
+    // u = {x, 0}
+    /*bottom.construct_f_bc2({ 1, 0, 0, 1 }, {
+         [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        return Point{ - (lambda + 2 * mu), 0}; },
+
+         zero,
+
         zero,
 
+         [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        return Point{ 0, -lambda}; }
+        });*/
+
+    // u = {0, y}
+    /*bottom.construct_f_bc2({ 0, 0, 1, 0 }, {
+         zero,
+
+         zero,
+
+        [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        return Point{ lambda, 0}; },
+
+         zero
+        });*/
+
+    // u = {1 + 2x - 3y, 4 + 3x + 2y}
+    /*bottom.construct_f_bc2({ 0, 0, 1, 0 }, {
+        zero,
+        zero,
+        [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        return Point{ 4 * (lambda + mu), 0}; },
+        zero
+        });*/
+
+     // Верхнее тело
+    top.set_bc1('W', ANS); 
+    //top.set_bc1('N', ANS);
+    top.set_bc1('E', ANS);
+
+    // u = {x, 0}
+    /*top.construct_f_bc2({ 1, 1, 0, 0 }, {
+         [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        return Point{ -(lambda + 2 * mu), 0}; },
+
+          [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        return Point{ 0, lambda}; },
+
+        zero,
+
+        zero
+        });*/
+
+    // u = {0, y}
+    /*top.construct_f_bc2({ 0, 0, 1, 0 }, {
+         zero,
+
+         zero,
+
+        [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        return Point{ lambda, 0}; },
+
+         zero
+        });*/
+
+    // u = {-21x, 13y}
+    /*top.construct_f_bc2({ 0, 1, 0, 0 }, {
          zero,
 
          [&](const Point& p) {
         double mu = E / (2 * (1 + nu));
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{ lambda * 3 + 2 * mu, 0}; },
+        return Point{ 0, - 8 * lambda + 26 * mu }; },
+
+        zero,
 
          zero
-     });*/
+        });*/
 
-     // Верхнее тело: задаем внешнюю нагрузку сверху.
-    top.set_bc1('W', ANS);
-    top.set_bc1('N', ANS);
-    top.set_bc1('E', ANS);
+    // u = {1 + 2x - 3y, 4 + 3x + 2y}
+    /*top.construct_f_bc2({ 0, 0, 1, 0 }, {
+        zero,
+        zero,
+        [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        return Point{ 4 * (lambda + mu), 0}; },
+        zero
+        });*/
 
-
-   /* top.construct_f_bc2({ 0, 1, 0, 0 }, {
+    // нагрузка для примера с разными телами, точным решением
+    top.construct_f_bc2({ 0, 1, 0, 0 }, {
         zero,
 
         [&](const Point& p) {
         double mu = E / (2 * (1 + nu));
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{ 0, -2e+10}; },
+        double y_bound = 3;
+        return Point{ (y_bound - 1) * 4.0 * mu * (lambda + mu) / lambda, 0}; },
+
+        zero,
+
+        zero
+        });
+   /*top.construct_f_bc2({ 0, 1, 0, 0 }, {
+        zero,
+
+        [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        double y_bound = 3;
+        return Point{ (y_bound - 1) * 4.0 * mu * (lambda + mu) / lambda, 0}; },
+
+        zero,
+
+        zero
+        });*/
+
+    // нагрузка для тестового примера
+    /*top.construct_f_bc2({ 0, 1, 0, 0 }, {
+        zero,
+
+        [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        double y_bound = 3;
+        return Point{ 0, -2e+10 }; },
 
         zero,
 
@@ -155,7 +307,7 @@ int main() {
     const auto top_contact_nodes = top.get_side_fem_nodes('S');
     const size_t n_contact = std::min(bottom_contact_nodes.size(), top_contact_nodes.size());
 
-    /*std::cout << "\nContact surface values:\n";
+    std::cout << "\nContact surface values:\n";
     std::cout << "id\tpoint\tu_bottom\tu_top\tu_exact(one-body)\n";
 
     for (size_t i = 0; i < n_contact; ++i) {
@@ -169,26 +321,26 @@ int main() {
         std::cout << i << "\t" << bottom_contact_point
             << "\t" << res_bottom[bottom_contact_id]
             << "\t" << res_top[top_contact_id]
-            << "\t" << exact_contact_value << "\n";*/
-    //}
-
-    std::cout << "\nu_bottom solution:\n";
-    for (size_t i = 0; i != res_bottom.size(); ++i) {
-        //if (std::fabs(res_bottom[i].x - ANS((bottom.fem)[i]).x) > 1e-7 ||
-          //  std::fabs(res_bottom[i].y - ANS((bottom.fem)[i]).y) > 1e-7)
-        std::cout << i << ": " << res_bottom[i] << '\t' << ANS((bottom.fem)[i]) << '\n';
+            << "\t" << exact_contact_value << "\n";
     }
 
-    std::cout << "\nu_top solution:\n";
-    for (size_t i = 0; i != res_top.size(); ++i)
-        //if (std::fabs(res_top[i].x - ANS((top.fem)[i]).x) > 1e-7 ||
-          //  std::fabs(res_top[i].y - ANS((top.fem)[i]).y) > 1e-7)
-            std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';
+    //std::cout << "\nu_bottom solution:\n";
+    //for (size_t i = 0; i != res_bottom.size(); ++i) {
+    //    //if (std::fabs(res_bottom[i].x - ANS((bottom.fem)[i]).x) > 1e-7 ||
+    //      //  std::fabs(res_bottom[i].y - ANS((bottom.fem)[i]).y) > 1e-7)
+    //    std::cout << i << ": " << res_bottom[i] << '\t' << ANS((bottom.fem)[i]) << '\n';
+    //}
 
-    /*save_displacement_component("results\bottom_displacement_x.txt", bottom.fem, res_bottom, 'x');
-    save_displacement_component("results\bottom_displacement_y.txt", bottom.fem, res_bottom, 'y');
-    save_displacement_component("results\top_displacement_x.txt", top.fem, res_top, 'x');
-    save_displacement_component("results\top_displacement_y.txt", top.fem, res_top, 'y');*/
+    //std::cout << "\nu_top solution:\n";
+    //for (size_t i = 0; i != res_top.size(); ++i)
+    //    //if (std::fabs(res_top[i].x - ANS((top.fem)[i]).x) > 1e-7 ||
+    //      //  std::fabs(res_top[i].y - ANS((top.fem)[i]).y) > 1e-7)
+    //        std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';
+
+    save_displacement_component("results/bottom_displacement_x.txt", bottom.fem, res_bottom, 'x');
+    save_displacement_component("results/bottom_displacement_y.txt", bottom.fem, res_bottom, 'y');
+    save_displacement_component("results/top_displacement_x.txt", top.fem, res_top, 'x');
+    save_displacement_component("results/top_displacement_y.txt", top.fem, res_top, 'y');
 
     // Расчет и вывод нормы ошибки
     double bottom_numerator = 0.0, bottom_denominator = 0.0;

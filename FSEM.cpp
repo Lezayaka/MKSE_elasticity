@@ -1,5 +1,4 @@
-#include "Headers.h"
-#include <array>
+п»ї#include "Headers.h"
 #include <stdexcept>
 #include <cmath>
 
@@ -23,7 +22,7 @@ FSEM::FSEM(double E, double nu, const Point& a, const Point& b,
 	f(2 * (coef_val_x * (n_x - 1) + 1) * (coef_val_y * (n_y - 1) + 1))
 	{
 
-	double h_x = (b.x - a.x) / n_side_x, h_y = (b.y - a.y) / n_side_y; // шаг
+	double h_x = (b.x - a.x) / n_side_x, h_y = (b.y - a.y) / n_side_y; // С€Р°Рі
 	
 	int n_nodes = 2 * (n_side_x + n_side_y);
 	nodes.resize(n_nodes);
@@ -60,14 +59,14 @@ void FSEM::print_nodes() const {
 }
 
 void FSEM::construct_basis() {
-	// количество узлов сетки для МКЭ
+	// РєРѕР»РёС‡РµСЃС‚РІРѕ СѓР·Р»РѕРІ СЃРµС‚РєРё РґР»СЏ РњРљР­
 	/*int n_x = n_side_x * coef_x + 1, n_y = n_side_y * coef_y + 1;
 	double dx = (b.x - a.x) / (n_x - 1), dy = (b.y - a.y) / (n_y - 1);*/
-	double dx = (b.x - a.x) / n_side_x, dy = (b.y - a.y) / n_side_y; // шаг
+	double dx = (b.x - a.x) / n_side_x, dy = (b.y - a.y) / n_side_y; // С€Р°Рі
 
-	//******************ЛЕВЫЙ НИЖНИЙ УГОЛ******************
+	//******************Р›Р•Р’Р«Р™ РќРР–РќРР™ РЈР“РћР›******************
 	
-	// находим базисную функцию для, равную 1 в a по х компоненте
+	// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ a РїРѕ С… РєРѕРјРїРѕРЅРµРЅС‚Рµ
 	fem.set_boundaries('W',
 		[&](const Point& p)
 		{
@@ -95,7 +94,7 @@ void FSEM::construct_basis() {
 	
 	basis[0] = fem.solve();
 	
-	// находим базисную функцию для, равную 1 в a по y компоненте
+	// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ a РїРѕ y РєРѕРјРїРѕРЅРµРЅС‚Рµ
 	fem.set_boundaries('W',
 		[&](const Point& p)
 		{
@@ -121,9 +120,9 @@ void FSEM::construct_basis() {
 
 	basis[1] = fem.solve();
 	
-	//******************ЛЕВЫЙ ВЕРХНИЙ УГОЛ******************
+	//******************Р›Р•Р’Р«Р™ Р’Р•Р РҐРќРР™ РЈР“РћР›******************
 	
-	// находим базисную функцию для, равную 1 в {a.x, b.y} по х компоненте
+	// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ {a.x, b.y} РїРѕ С… РєРѕРјРїРѕРЅРµРЅС‚Рµ
 	fem.set_boundaries('W',
 		[&](const Point& p)
 		{
@@ -149,7 +148,7 @@ void FSEM::construct_basis() {
 	fem.apply_boundaries();
 	basis[2 * n_side_y] = fem.solve();
 
-	// находим базисную функцию для, равную 1 в {a.x, b.y} по y компоненте
+	// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ {a.x, b.y} РїРѕ y РєРѕРјРїРѕРЅРµРЅС‚Рµ
 	fem.set_boundaries('W',
 		[&](const Point& p)
 		{
@@ -175,9 +174,9 @@ void FSEM::construct_basis() {
 	fem.apply_boundaries();
 	basis[2 * n_side_y + 1] = fem.solve();
 	
-	//******************ПРАВЫЙ ВЕРХНИЙ УГОЛ******************
+	//******************РџР РђР’Р«Р™ Р’Р•Р РҐРќРР™ РЈР“РћР›******************
 	
-	// находим базисную функцию для, равную 1 в b по х компоненте
+	// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ b РїРѕ С… РєРѕРјРїРѕРЅРµРЅС‚Рµ
 	fem.set_boundaries('W', zero );
 	fem.set_boundaries('N',
 		[&](const Point& p)
@@ -203,7 +202,7 @@ void FSEM::construct_basis() {
 	fem.apply_boundaries();
 	basis[2 * (n_side_x + n_side_y)] = fem.solve();
 	
-	// находим базисную функцию для, равную 1 в b по y компоненте
+	// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ b РїРѕ y РєРѕРјРїРѕРЅРµРЅС‚Рµ
 	fem.set_boundaries('W', zero);
 	fem.set_boundaries('N',
 		[&](const Point& p)
@@ -229,9 +228,9 @@ void FSEM::construct_basis() {
 	fem.apply_boundaries();
 	basis[2 * (n_side_x + n_side_y) + 1] = fem.solve();
 	
-	//******************ПРАВЫЙ НИЖНИЙ УГОЛ******************
+	//******************РџР РђР’Р«Р™ РќРР–РќРР™ РЈР“РћР›******************
 	
-	// находим базисную функцию для, равную 1 в {b.x, a.y} по х компоненте
+	// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ {b.x, a.y} РїРѕ С… РєРѕРјРїРѕРЅРµРЅС‚Рµ
 	fem.set_boundaries('W', zero);
 	fem.set_boundaries('N', zero);
 	fem.set_boundaries('E',
@@ -257,7 +256,7 @@ void FSEM::construct_basis() {
 	fem.apply_boundaries();
 	basis[2 * (n_side_x + 2 * n_side_y)] = fem.solve();
 	
-	// находим базисную функцию для, равную 1 в {b.x, a.y} по y компоненте
+	// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ {b.x, a.y} РїРѕ y РєРѕРјРїРѕРЅРµРЅС‚Рµ
 	fem.set_boundaries('W', zero);
 	fem.set_boundaries('N', zero);
 	fem.set_boundaries('E',
@@ -283,13 +282,13 @@ void FSEM::construct_basis() {
 	fem.apply_boundaries();
 	basis[2 * (n_side_x + 2 * n_side_y) + 1] = fem.solve();
 	
-	//******************ВЕРТИКАЛЬНАЯ СТОРОНА******************
+	//******************Р’Р•Р РўРРљРђР›Р¬РќРђРЇ РЎРўРћР РћРќРђ******************
 	
 	for (int i = 1; i < n_side_y; ++i) {
 
-		//--------------НА ЛЕВОЙ--------------
+		//--------------РќРђ Р›Р•Р’РћР™--------------
 		
-		// находим базисную функцию для, равную 1 в i по х компоненте
+		// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ i РїРѕ С… РєРѕРјРїРѕРЅРµРЅС‚Рµ
 		fem.set_boundaries('W',
 			[&](const Point& p)
 			{
@@ -313,7 +312,7 @@ void FSEM::construct_basis() {
 		fem.apply_boundaries();
 		basis[2 * i] = fem.solve();
 		
-		// находим базисную функцию для, равную 1 в i по y компоненте
+		// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ i РїРѕ y РєРѕРјРїРѕРЅРµРЅС‚Рµ
 		fem.set_boundaries('W',
 			[&](const Point& p)
 			{
@@ -337,9 +336,9 @@ void FSEM::construct_basis() {
 		fem.apply_boundaries();
 		basis[2 * i + 1] = fem.solve();
 		
-		//--------------НА ПРАВОЙ--------------
+		//--------------РќРђ РџР РђР’РћР™--------------
 
-		// находим базисную функцию для, равную 1 в (n_side_x + n_side_y + i) по х компоненте
+		// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ (n_side_x + n_side_y + i) РїРѕ С… РєРѕРјРїРѕРЅРµРЅС‚Рµ
 		fem.set_boundaries('W', zero);
 		fem.set_boundaries('N', zero);
 		fem.set_boundaries('E',
@@ -363,7 +362,7 @@ void FSEM::construct_basis() {
 		fem.apply_boundaries();
 		basis[2 * (n_side_x + n_side_y + i)] = fem.solve();
 		
-		// находим базисную функцию для, равную 1 в i по y компоненте
+		// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ i РїРѕ y РєРѕРјРїРѕРЅРµРЅС‚Рµ
 		fem.set_boundaries('W', zero);
 		fem.set_boundaries('N', zero);
 		fem.set_boundaries('E',
@@ -388,13 +387,13 @@ void FSEM::construct_basis() {
 		basis[2 * (n_side_x + n_side_y + i) + 1] = fem.solve();
 	}
 
-	//******************ГОРИЗОНТАЛЬНАЯ СТОРОНА******************
+	//******************Р“РћР РР—РћРќРўРђР›Р¬РќРђРЇ РЎРўРћР РћРќРђ******************
 	
 	for (int i = 1; i < n_side_x; ++i) {
 
-		//--------------НА ВЕРХНЕЙ--------------
+		//--------------РќРђ Р’Р•Р РҐРќР•Р™--------------
 
-		// находим базисную функцию для, равную 1 в n_side_x + i по х компоненте
+		// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ n_side_x + i РїРѕ С… РєРѕРјРїРѕРЅРµРЅС‚Рµ
 		fem.set_boundaries('W', zero);
 		fem.set_boundaries('N',
 			[&](const Point& p)
@@ -418,7 +417,7 @@ void FSEM::construct_basis() {
 		fem.apply_boundaries();
 		basis[2 * (n_side_y + i)] = fem.solve();
 		
-		// находим базисную функцию для, равную 1 в n_side_x + i по y компоненте
+		// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ n_side_x + i РїРѕ y РєРѕРјРїРѕРЅРµРЅС‚Рµ
 		fem.set_boundaries('W', zero);
 		fem.set_boundaries('N',
 			[&](const Point& p)
@@ -442,9 +441,9 @@ void FSEM::construct_basis() {
 		fem.apply_boundaries();
 		basis[2 * (n_side_y + i) + 1] = fem.solve();
 		
-		//--------------НА НИЖНЕЙ--------------
+		//--------------РќРђ РќРР–РќР•Р™--------------
 
-		// находим базисную функцию для, равную 1 в (2 * n_side_y + n_side_x + i) по х компоненте
+		// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ (2 * n_side_y + n_side_x + i) РїРѕ С… РєРѕРјРїРѕРЅРµРЅС‚Рµ
 		fem.set_boundaries('W', zero);
 		fem.set_boundaries('N', zero);
 		fem.set_boundaries('E', zero);
@@ -468,7 +467,7 @@ void FSEM::construct_basis() {
 		fem.apply_boundaries();
 		basis[2 * (2 * n_side_y + n_side_x + i)] = fem.solve();
 		
-		// находим базисную функцию для, равную 1 в (2 * n_side_y + n_side_x + i) по y компоненте
+		// РЅР°С…РѕРґРёРј Р±Р°Р·РёСЃРЅСѓСЋ С„СѓРЅРєС†РёСЋ РґР»СЏ, СЂР°РІРЅСѓСЋ 1 РІ (2 * n_side_y + n_side_x + i) РїРѕ y РєРѕРјРїРѕРЅРµРЅС‚Рµ
 		fem.set_boundaries('W', zero);
 		fem.set_boundaries('N', zero);
 		fem.set_boundaries('E', zero);
@@ -546,7 +545,7 @@ void FSEM::calculate_coef_Matrix_bc2(const int finish, const int i,
 	bool is_cur_Neumann, bool is_prev_Neumann, int& add_N, int& add_D, const int add_basis, Matrix& N,
 	Matrix& D) {
 
-	// обработка первой точки на данной границе
+	// РѕР±СЂР°Р±РѕС‚РєР° РїРµСЂРІРѕР№ С‚РѕС‡РєРё РЅР° РґР°РЅРЅРѕР№ РіСЂР°РЅРёС†Рµ
 	if (is_cur_Neumann && is_prev_Neumann) {
 		N[2 * i][add_N] = basis[add_basis][i].x;
 		N[2 * i + 1][add_N] = basis[add_basis][i].y;
@@ -597,7 +596,7 @@ void FSEM::set_bc2(const std::vector<size_t>& pos,
 	const std::vector<vec_function>& g) {
 
 	fem.construct_AF(E, nu, zero);
-	auto K_fem  = fem.get_AF().first; // матрица жесткости
+	auto K_fem  = fem.get_AF().first; // РјР°С‚СЂРёС†Р° Р¶РµСЃС‚РєРѕСЃС‚Рё
 	
 	size_t n_known_coefs = 0;
 	if (!pos[0]) n_known_coefs += n_side_y + 1;
@@ -612,20 +611,20 @@ void FSEM::set_bc2(const std::vector<size_t>& pos,
 
 	size_t n_unknown_coefs = 2 * (2 * n_side_x + 2 * n_side_y - n_known_coefs);
 	
-	// столбцы - значения суперэлементов, соответствующих
-	// неизвестным коэффициентам, в узлах мкэ сетки
+	// СЃС‚РѕР»Р±С†С‹ - Р·РЅР°С‡РµРЅРёСЏ СЃСѓРїРµСЂСЌР»РµРјРµРЅС‚РѕРІ, СЃРѕРѕС‚РІРµС‚СЃС‚РІСѓСЋС‰РёС…
+	// РЅРµРёР·РІРµСЃС‚РЅС‹Рј РєРѕСЌС„С„РёС†РёРµРЅС‚Р°Рј, РІ СѓР·Р»Р°С… РјРєСЌ СЃРµС‚РєРё
 	Matrix N(K_fem.size(), n_unknown_coefs);
 
-	// столбцы - значения суперэлементов, соответствующих
-	// известным коэффициентам, в узлах мкэ сетки
+	// СЃС‚РѕР»Р±С†С‹ - Р·РЅР°С‡РµРЅРёСЏ СЃСѓРїРµСЂСЌР»РµРјРµРЅС‚РѕРІ, СЃРѕРѕС‚РІРµС‚СЃС‚РІСѓСЋС‰РёС…
+	// РёР·РІРµСЃС‚РЅС‹Рј РєРѕСЌС„С„РёС†РёРµРЅС‚Р°Рј, РІ СѓР·Р»Р°С… РјРєСЌ СЃРµС‚РєРё
 	Matrix D(K_fem.size(), 2 * n_known_coefs);
 
-	// интегралы от ГУ 2 рода * функции формы мкэ
+	// РёРЅС‚РµРіСЂР°Р»С‹ РѕС‚ Р“РЈ 2 СЂРѕРґР° * С„СѓРЅРєС†РёРё С„РѕСЂРјС‹ РјРєСЌ
 	std::vector<double> p_vec(K_fem.size(), 0.0);
 
 	int finish = 0, prev_pos = 0;
 	
-	// находим B и C
+	// РЅР°С…РѕРґРёРј B Рё C
 	for (size_t i = 0; i < fem.psize(); i++) {
 		int add_N = 0, add_D = 0, add_basis = 0;
 
@@ -651,7 +650,7 @@ void FSEM::set_bc2(const std::vector<size_t>& pos,
 
 	Matrix A = N_Transposed.dot(K_fem).dot(N);
 
-	// сохрвняем известные коэффициенты из ГУ Дирихле
+	// СЃРѕС…СЂРІРЅСЏРµРј РёР·РІРµСЃС‚РЅС‹Рµ РєРѕСЌС„С„РёС†РёРµРЅС‚С‹ РёР· Р“РЈ Р”РёСЂРёС…Р»Рµ
 	std::vector<double> coefs_Dirichle(2 * n_known_coefs);
 	int dir_id = 0;
 
@@ -843,11 +842,6 @@ double mortar_shape_func(size_t i, const std::vector<double>& s, double cur) {
 namespace {
 
 	constexpr double kContactEps = 1e-12;
-	const std::array<double, 2> kGaussPoints = {
-		-0.5773502691896257,
-		 0.5773502691896257
-	};
-
 	bool almost_equal(double lhs, double rhs, double eps = kContactEps) {
 		return std::fabs(lhs - rhs) < eps;
 	}
@@ -950,25 +944,26 @@ namespace {
 			if (len <= kContactEps)
 				continue;
 
-			const double center = 0.5 * (x_left + x_right);
-			const double half_len = 0.5 * len;
+			const double x_mid = 0.5 * (x_left + x_right);
+			std::vector<double> lambda_values(lambda_nodes.size());
+			for (size_t l = 0; l < lambda_nodes.size(); ++l)
+				lambda_values[l] = mortar_shape_func(l, lambda_nodes, x_mid);
 
-			for (double gauss_point : kGaussPoints) {
-				const double x = center + half_len * gauss_point;
-				std::vector<double> lambda_values(lambda_nodes.size());
-				for (size_t l = 0; l < lambda_nodes.size(); ++l)
-					lambda_values[l] = mortar_shape_func(l, lambda_nodes, x);
+			for (size_t node : side_nodes) {
+				const double N_left_x = interpolate_trace_value(
+					basis[2 * node], fem_side_nodes, side_x, x_left);
+				const double N_right_x = interpolate_trace_value(
+					basis[2 * node], fem_side_nodes, side_x, x_right);
+				const double N_left_y = interpolate_trace_value(
+					basis[2 * node + 1], fem_side_nodes, side_x, x_left);
+				const double N_right_y = interpolate_trace_value(
+					basis[2 * node + 1], fem_side_nodes, side_x, x_right);
+				const double N_val_x = 0.5 * (N_left_x + N_right_x);
+				const double N_val_y = 0.5 * (N_left_y + N_right_y);
 
-				for (size_t node : side_nodes) {
-					const double N_val_x = interpolate_trace_value(
-						basis[2 * node], fem_side_nodes, side_x, x);
-					const double N_val_y = interpolate_trace_value(
-						basis[2 * node + 1], fem_side_nodes, side_x, x);
-
-					for (size_t l = 0; l < lambda_nodes.size(); ++l) {
-						M[2 * node][l] += N_val_x * lambda_values[l] * half_len;
-						M[2 * node + 1][l] += N_val_y * lambda_values[l] * half_len;
-					}
+				for (size_t l = 0; l < lambda_nodes.size(); ++l) {
+					M[2 * node][l] += N_val_x * lambda_values[l] * len;
+					M[2 * node + 1][l] += N_val_y * lambda_values[l] * len;
 				}
 			}
 		}
@@ -1086,7 +1081,7 @@ std::vector<double> solve_mortar_contact(
 	return solveWithLU(Sys, rhs);
 }
 
-std::vector<Point> FSEM::find_answer(const std::vector<double>& coefs, int start) {
+std::vector<Point> FSEM::find_answer(const std::vector<double>& coefs, size_t start) {
 
 	std::vector<Point> res(fem.psize());
 	for (size_t i = 0; i < res.size(); i++)

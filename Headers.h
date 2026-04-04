@@ -193,7 +193,7 @@ public:
 
 	//void find_coefficients(const vec_function& g);
 	std::vector<Point> find_answer();
-	std::vector<Point> find_answer(const std::vector<double>& coefs, int start = 0);
+	std::vector<Point> find_answer(const std::vector<double>& coefs, size_t start = 0);
 
 	// +-N-+ ♡♡♡♡♡♡♡♡♡♡♡♡
 	// W---E ♡♡♡♡♡♡♡♡♡♡♡♡
