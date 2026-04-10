@@ -96,6 +96,8 @@ public:
 
 	size_t psize() const { return points.size(); };
 	size_t tsize() const { return triangles.size(); };
+	size_t xsize() const { return mx; };
+	size_t ysize() const { return ny; };
 
 	void print_points() const;
 	void print_triangles() const;
