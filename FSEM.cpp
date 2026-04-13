@@ -911,14 +911,9 @@ namespace {
 		const std::vector<double>& side_x,
 		double x) {
 
-		if (fem_side_nodes.size() != side_x.size())
-			throw std::runtime_error("Boundary node mapping is inconsistent.");
-
 		const size_t segment = find_segment_index(side_x, x);
 		const double x_left = side_x[segment];
 		const double x_right = side_x[segment + 1];
-		if (almost_equal(x_left, x_right))
-			throw std::runtime_error("Degenerate boundary segment on contact side.");
 
 		const size_t left_fem = fem_side_nodes[segment];
 		const size_t right_fem = fem_side_nodes[segment + 1];
@@ -991,8 +986,6 @@ std::vector<double> solve_mortar_contact(
 
 	const size_t n1 = A1.size();
 	const size_t n2 = A2.size();
-	if (side_bottom.size() < 2 || side_top.size() < 2)
-		throw std::runtime_error("Contact boundary has less than two nodes.");
 
 	std::vector<double> bottom_x(side_bottom.size());
 	std::vector<double> top_x(side_top.size());
@@ -1003,19 +996,13 @@ std::vector<double> solve_mortar_contact(
 
 	const double contact_left = std::max(bottom_x.front(), top_x.front());
 	const double contact_right = std::min(bottom_x.back(), top_x.back());
-	if (contact_right - contact_left <= kContactEps)
-		throw std::runtime_error("Contact boundary overlap is empty or degenerate.");
 
 	const auto& master_x = bottom_is_master ? bottom_x : top_x;
 	std::vector<double> lambda_nodes = collect_active_lambda_nodes(
 		master_x, contact_left, contact_right);
-	if (lambda_nodes.size() < 2)
-		throw std::runtime_error("Master contact boundary has less than two active nodes.");
 
 	std::vector<double> integration_nodes = collect_overlap_nodes(
 		bottom_x, top_x, contact_left, contact_right);
-	if (integration_nodes.size() < 2)
-		throw std::runtime_error("Contact boundary segmentation is degenerate.");
 
 	const size_t n_lambda = lambda_nodes.size();
 

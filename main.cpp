@@ -43,9 +43,6 @@ void save_displacement_component(
     }
 }
 
-void save_displacement_contact() {
-}
-
 namespace {
 
 constexpr double kStressTraceEps = 1e-12;
@@ -70,8 +67,6 @@ double derivative_x(
     char component) {
 
     const size_t mx = mesh.xsize();
-    if (mx < 2)
-        throw std::runtime_error("At least two grid nodes along x are required.");
 
     auto value = [&](size_t c) {
         return point_component(field[row * mx + c], component);
@@ -167,9 +162,24 @@ std::vector<double> recover_side_sigma_yy(
     return sigma;
 }
 
+std::vector<double> recover_side_normal_displacement(
+    const FSEM& body,
+    const std::vector<Point>& displacement_field,
+    char side) {
+
+    const auto side_nodes = body.get_side_fem_nodes(side);
+    const char component =
+        (side == 'N' || side == 'S') ? 'y' :
+        (side == 'W' || side == 'E') ? 'x' : '\0';
+
+    std::vector<double> values(side_nodes.size(), 0.0);
+    for (size_t i = 0; i < side_nodes.size(); ++i)
+        values[i] = point_component(displacement_field[side_nodes[i]], component);
+
+    return values;
+}
+
 size_t find_trace_segment(const std::vector<double>& x_nodes, double x) {
-    if (x_nodes.size() < 2)
-        throw std::runtime_error("Contact trace has less than two nodes.");
 
     if (x <= x_nodes.front() + kStressTraceEps)
         return 0;
@@ -181,16 +191,12 @@ size_t find_trace_segment(const std::vector<double>& x_nodes, double x) {
         if (x >= x_nodes[i] - kStressTraceEps && x <= x_nodes[i + 1] + kStressTraceEps)
             return i;
 
-    throw std::runtime_error("Requested x is outside the contact trace.");
 }
 
 double interpolate_trace_value(
     const std::vector<double>& x_nodes,
     const std::vector<double>& values,
     double x) {
-
-    if (x_nodes.size() != values.size())
-        throw std::runtime_error("Contact trace interpolation data is inconsistent.");
 
     const size_t segment = find_trace_segment(x_nodes, x);
     const double x_left = x_nodes[segment];
@@ -209,13 +215,10 @@ std::vector<double> build_contact_x_grid(
     const std::vector<double>& bottom_x,
     const std::vector<double>& top_x) {
 
-    if (bottom_x.empty() || top_x.empty())
         throw std::runtime_error("Empty contact boundary while preparing stress output.");
 
     const double contact_left = std::max(bottom_x.front(), top_x.front());
     const double contact_right = std::min(bottom_x.back(), top_x.back());
-    if (contact_right - contact_left <= kStressTraceEps)
-        throw std::runtime_error("Contact overlap is empty while preparing stress output.");
 
     std::vector<double> x_grid;
     x_grid.reserve(bottom_x.size() + top_x.size() + 2);
@@ -272,10 +275,41 @@ void save_contact_normal_stress(
     }
 }
 
+void save_contact_normal_displacement(
+    const std::string& file_name,
+    const FSEM& bottom_body,
+    const std::vector<Point>& bottom_field,
+    const FSEM& top_body,
+    const std::vector<Point>& top_field) {
+
+    const std::vector<double> bottom_x = get_side_x_coordinates(bottom_body, 'N');
+    const std::vector<double> top_x = get_side_x_coordinates(top_body, 'S');
+    const std::vector<double> x_grid = build_contact_x_grid(bottom_x, top_x);
+
+    const std::vector<double> u_bottom_nodes =
+        recover_side_normal_displacement(bottom_body, bottom_field, 'N');
+    const std::vector<double> u_top_nodes =
+        recover_side_normal_displacement(top_body, top_field, 'S');
+
+    std::ofstream out(file_name);
+    if (!out.is_open()) {
+        std::cerr << "Failed to open output file: " << file_name << '\n';
+        return;
+    }
+
+    out << std::setprecision(16);
+    for (double x : x_grid) {
+        const double u_bottom = interpolate_trace_value(bottom_x, u_bottom_nodes, x);
+        const double u_top = interpolate_trace_value(top_x, u_top_nodes, x);
+        out << x << " " << u_bottom << " " << u_top << "\n";
+    }
+}
+
 }
 
 // простые решения
-/*vec_function ans(double nu, double E) {
+/*
+vec_function ans(double nu, double E) {
     return [nu, E](const Point& p) {
         double mu = E / (2 * (1 + nu));
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
@@ -352,10 +386,10 @@ int main() {
     //auto ANS = ans(nu, E);
 
     // совпадающие сетки
-    //size_t n_bottom_x = 3, n_bottom_y = 3, n_top_x = 3, n_top_y = 3;
+    //size_t n_bottom_x = 15, n_bottom_y = 15, n_top_x = 15, n_top_y = 15;
 
     // несовпадающие сетки
-    size_t n_bottom_x = 5, n_bottom_y = 5, n_top_x = 5, n_top_y = 5;
+    size_t n_bottom_x = 10, n_bottom_y = 4, n_top_x = 9, n_top_y = 13;
     //const bool bottom_is_master = false;
     const bool bottom_is_master = true;
 
@@ -580,7 +614,12 @@ int main() {
         res_top,
         E,
         nu);
-    save_displacement_contact();
+    save_contact_normal_displacement(
+        "results/contact_normal_displacement.txt",
+        bottom,
+        res_bottom,
+        top,
+        res_top);
 
     // Расчет и вывод нормы ошибки
     /*double bottom_numerator = 0.0, bottom_denominator = 0.0;
