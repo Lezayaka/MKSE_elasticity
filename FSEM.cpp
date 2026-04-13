@@ -842,9 +842,6 @@ double mortar_shape_func(size_t i, const std::vector<double>& s, double cur) {
 namespace {
 
 	constexpr double kContactEps = 1e-12;
-	bool almost_equal(double lhs, double rhs, double eps = kContactEps) {
-		return std::fabs(lhs - rhs) < eps;
-	}
 
 	size_t find_segment_index(const std::vector<double>& x_nodes, double x_mid) {
 		if (x_nodes.size() < 2)
@@ -858,51 +855,47 @@ namespace {
 		throw std::runtime_error("Contact quadrature point is outside boundary segmentation.");
 	}
 
-	std::vector<double> collect_overlap_nodes(
+	size_t count_contact_nodes(
+		const std::vector<double>& x_nodes,
+		double contact_left,
+		double contact_right) {
+
+		size_t count = 0;
+		for (double x : x_nodes)
+			if (x >= contact_left - kContactEps && x <= contact_right + kContactEps)
+				++count;
+
+		return count;
+	}
+
+	size_t default_lambda_node_count(
 		const std::vector<double>& bottom_x,
 		const std::vector<double>& top_x,
 		double contact_left,
 		double contact_right) {
 
-		std::vector<double> nodes;
-		nodes.reserve(bottom_x.size() + top_x.size() + 2);
-		nodes.push_back(contact_left);
-		nodes.push_back(contact_right);
-
-		auto append_inside = [&](const std::vector<double>& x_nodes) {
-			for (double x : x_nodes)
-				if (x >= contact_left - kContactEps && x <= contact_right + kContactEps)
-					nodes.push_back(x);
-		};
-
-		append_inside(bottom_x);
-		append_inside(top_x);
-
-		std::sort(nodes.begin(), nodes.end());
-		nodes.erase(std::unique(nodes.begin(), nodes.end(),
-			[](double lhs, double rhs) { return almost_equal(lhs, rhs); }), nodes.end());
-		return nodes;
+		return std::max<size_t>(
+			2,
+			std::max(
+				count_contact_nodes(bottom_x, contact_left, contact_right),
+				count_contact_nodes(top_x, contact_left, contact_right)));
 	}
 
-	std::vector<double> collect_active_lambda_nodes(
-		const std::vector<double>& master_x,
+	// строит сетку общей контактной границы
+	std::vector<double> build_uniform_lambda_nodes(
 		double contact_left,
-		double contact_right) {
+		double contact_right,
+		size_t lambda_node_count) {
 
-		std::vector<double> active_nodes;
-		active_nodes.reserve(master_x.size());
+		std::vector<double> lambda_nodes(lambda_node_count);
+		const double step = (contact_right - contact_left) / (lambda_node_count - 1);
 
-		for (size_t i = 0; i < master_x.size(); ++i) {
-			const double support_left = (i == 0) ? master_x[i] : master_x[i - 1];
-			const double support_right = (i + 1 == master_x.size()) ? master_x[i] : master_x[i + 1];
+		for (size_t i = 0; i < lambda_node_count; ++i)
+			lambda_nodes[i] = contact_left + i * step;
 
-			if (support_right > contact_left + kContactEps &&
-				support_left < contact_right - kContactEps) {
-				active_nodes.push_back(master_x[i]);
-			}
-		}
-
-		return active_nodes;
+		lambda_nodes.front() = contact_left;
+		lambda_nodes.back() = contact_right;
+		return lambda_nodes;
 	}
 
 	double interpolate_trace_value(
@@ -971,7 +964,7 @@ std::vector<double> solve_mortar_contact(
 	FSEM& top_body,
 	const std::vector<double>& rhs_bottom,
 	const std::vector<double>& rhs_top,
-	bool bottom_is_master) {
+	size_t lambda_node_count) {
 
 	Matrix A1 = bottom_body.get_K();
 	Matrix A2 = top_body.get_K();
@@ -997,13 +990,12 @@ std::vector<double> solve_mortar_contact(
 	const double contact_left = std::max(bottom_x.front(), top_x.front());
 	const double contact_right = std::min(bottom_x.back(), top_x.back());
 
-	const auto& master_x = bottom_is_master ? bottom_x : top_x;
-	std::vector<double> lambda_nodes = collect_active_lambda_nodes(
-		master_x, contact_left, contact_right);
+	if (lambda_node_count == 0)
+		lambda_node_count = default_lambda_node_count(
+			bottom_x, top_x, contact_left, contact_right);
 
-	std::vector<double> integration_nodes = collect_overlap_nodes(
-		bottom_x, top_x, contact_left, contact_right);
-
+	std::vector<double> lambda_nodes = build_uniform_lambda_nodes(
+		contact_left, contact_right, lambda_node_count);
 	const size_t n_lambda = lambda_nodes.size();
 
 	const auto known_bottom = bottom_body.get_known_dofs();
@@ -1013,9 +1005,9 @@ std::vector<double> solve_mortar_contact(
 	Matrix M2(n2, n_lambda);
 
 	std::vector<MortarElement> mortar_elements;
-	mortar_elements.reserve(integration_nodes.size() - 1);
-	for (size_t seg = 0; seg + 1 < integration_nodes.size(); ++seg)
-		mortar_elements.push_back({ integration_nodes[seg], integration_nodes[seg + 1] });
+	mortar_elements.reserve(lambda_nodes.size() - 1);
+	for (size_t seg = 0; seg + 1 < lambda_nodes.size(); ++seg)
+		mortar_elements.push_back({ lambda_nodes[seg], lambda_nodes[seg + 1] });
 
 	assemble_body_mortar_matrix(M1, basis_bottom, side_bottom, fem_bottom,
 		bottom_x, mortar_elements, lambda_nodes);

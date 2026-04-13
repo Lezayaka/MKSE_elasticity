@@ -191,7 +191,7 @@ size_t find_trace_segment(const std::vector<double>& x_nodes, double x) {
         if (x >= x_nodes[i] - kStressTraceEps && x <= x_nodes[i + 1] + kStressTraceEps)
             return i;
 
-}
+    }
 
 double interpolate_trace_value(
     const std::vector<double>& x_nodes,
@@ -330,6 +330,19 @@ vec_function ans(double nu, double E) {
 }*/
 
 // u = {e(x) cos(y - 0.5), - e(x) sin(y - 0.5)} 
+vec_function ans(double nu, double E) {
+    return [nu, E](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        const double& x = p.x, & y = p.y;
+
+        return Point{
+            exp(x) * cos(y - 0.5),
+
+            -exp(x) * sin(y - 0.5)
+        };
+        };
+}
 /*vec_function ans(double nu, double E) {
     return [nu, E](const Point& p) {
         double mu = E / (2 * (1 + nu));
@@ -380,18 +393,17 @@ int main() {
     double E = 21e+10;
     double nu = 0.3;
 
-    Point bottom_a = { 0, 0 }, bottom_b = { 3, 1 };
-    Point top_a = { 0, 1 }, top_b = { 2, 4 };
+    Point bottom_a = { 0, 0 }, bottom_b = { 1, 0.5 };
+    Point top_a = { 0, 0.5 }, top_b = { 1, 1 };
 
-    //auto ANS = ans(nu, E);
+    auto ANS = ans(nu, E);
 
     // совпадающие сетки
     //size_t n_bottom_x = 15, n_bottom_y = 15, n_top_x = 15, n_top_y = 15;
 
     // несовпадающие сетки
-    size_t n_bottom_x = 10, n_bottom_y = 4, n_top_x = 9, n_top_y = 13;
-    //const bool bottom_is_master = false;
-    const bool bottom_is_master = true;
+    size_t n_bottom_x = 6, n_bottom_y = 6, n_top_x = 10, n_top_y = 10;
+    const size_t lambda_node_count = 11;
 
     FSEM bottom(E, nu, bottom_a, bottom_b, n_bottom_x, n_bottom_y);
     FSEM top(E, nu, top_a, top_b, n_top_x, n_top_y);
@@ -400,10 +412,10 @@ int main() {
     top.construct_basis();
 
     // Нижнее тело
-    bottom.set_bc1('W', zero); 
+    bottom.set_bc1('W', ANS); 
 
-    //bottom.set_bc1('E', zero);
-    bottom.set_bc1('S', zero);
+    bottom.set_bc1('E', ANS);
+    bottom.set_bc1('S', ANS);
 
     // u = {x, 0}
     /*bottom.construct_f_bc2({ 1, 0, 0, 1 }, {
@@ -448,9 +460,9 @@ int main() {
         });*/
 
      // Верхнее тело
-    top.set_bc1('W', zero); 
-    //top.set_bc1('N', zero);
-    //top.set_bc1('E', zero);
+    top.set_bc1('W', ANS); 
+    top.set_bc1('N', ANS);
+    top.set_bc1('E', ANS);
 
     // u = {x, 0}
     /*top.construct_f_bc2({ 1, 1, 0, 0 }, {
@@ -524,19 +536,6 @@ int main() {
         });*/
 
     // нагрузка для тестового примера
-    top.construct_f_bc2({ 0, 1, 0, 0 }, {
-        zero,
-
-        [&](const Point& p) {
-        double mu = E / (2 * (1 + nu));
-        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        double y_bound = 3;
-        return Point{ 0, -2e+10 }; },
-
-        zero,
-
-        zero
-        });
     /*top.construct_f_bc2({ 0, 1, 0, 0 }, {
         zero,
 
@@ -555,7 +554,7 @@ int main() {
     std::vector<double> rhs_top = top.get_f();
 
     std::vector<double> solution = solve_mortar_contact(
-        bottom, top, rhs_bottom, rhs_top, bottom_is_master);
+        bottom, top, rhs_bottom, rhs_top, lambda_node_count);
 
     const size_t n1 = bottom.get_K().size();
     const size_t n2 = top.get_K().size();
@@ -572,7 +571,7 @@ int main() {
     const auto top_contact_nodes = top.get_side_fem_nodes('S');
     const size_t n_contact = std::min(bottom_contact_nodes.size(), top_contact_nodes.size());
 
-    std::cout << "\nContact surface values:\n";
+    //std::cout << "\nContact surface values:\n";
     std::cout << "id\tpoint\tu_bottom\tu_top\tu_exact(one-body)\n";
 
     for (size_t i = 0; i < n_contact; ++i) {
@@ -602,7 +601,7 @@ int main() {
     //      //  std::fabs(res_top[i].y - ANS((top.fem)[i]).y) > 1e-7)
     //        std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';
 
-    save_displacement_component("results/bottom_displacement_x.txt", bottom.fem, res_bottom, 'x');
+   /* save_displacement_component("results/bottom_displacement_x.txt", bottom.fem, res_bottom, 'x');
     save_displacement_component("results/bottom_displacement_y.txt", bottom.fem, res_bottom, 'y');
     save_displacement_component("results/top_displacement_x.txt", top.fem, res_top, 'x');
     save_displacement_component("results/top_displacement_y.txt", top.fem, res_top, 'y');
@@ -619,10 +618,10 @@ int main() {
         bottom,
         res_bottom,
         top,
-        res_top);
+        res_top);*/
 
     // Расчет и вывод нормы ошибки
-    /*double bottom_numerator = 0.0, bottom_denominator = 0.0;
+    double bottom_numerator = 0.0, bottom_denominator = 0.0;
 
     for (size_t i = 0; i != res_bottom.size(); ++i) {
         Point U = ANS((bottom.fem)[i]);
@@ -648,7 +647,7 @@ int main() {
         ? sqrt(top_numerator / top_denominator)
         : 0.0;
 
-    std::cout << "Reletive u_top: " << rel_top << "\n";*/
+    std::cout << "Reletive u_top: " << rel_top << "\n";
 
     return 0;
 }

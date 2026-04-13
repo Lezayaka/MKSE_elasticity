@@ -233,7 +233,7 @@ std::vector<double> solve_mortar_contact(
 	FSEM& top_body,
 	const std::vector<double>& rhs_bottom,
 	const std::vector<double>& rhs_top,
-	bool bottom_is_master = true);
+	size_t lambda_node_count = 0);
 
 std::vector<double> solveWithLU(const Matrix& A,
 	const std::vector<double>& b,
