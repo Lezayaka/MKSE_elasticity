@@ -403,7 +403,7 @@ int main() {
 
     // несовпадающие сетки
     size_t n_bottom_x = 6, n_bottom_y = 6, n_top_x = 10, n_top_y = 10;
-    const size_t lambda_node_count = 11;
+    const size_t lambda_node_count = 10;
 
     FSEM bottom(E, nu, bottom_a, bottom_b, n_bottom_x, n_bottom_y);
     FSEM top(E, nu, top_a, top_b, n_top_x, n_top_y);
