@@ -899,6 +899,42 @@ namespace {
 		return lambda_nodes;
 	}
 
+	std::vector<MortarElement> build_mortar_elements(
+		const std::vector<double>& bottom_x,
+		const std::vector<double>& top_x,
+		const std::vector<double>& lambda_nodes,
+		double contact_left,
+		double contact_right) {
+
+		std::vector<double> partition;
+		partition.reserve(bottom_x.size() + top_x.size() + lambda_nodes.size() + 2);
+		partition.push_back(contact_left);
+		partition.push_back(contact_right);
+
+		auto append_contact_nodes = [&](const std::vector<double>& nodes) {
+			for (double x : nodes)
+				if (x >= contact_left - kContactEps && x <= contact_right + kContactEps)
+					partition.push_back(x);
+		};
+
+		append_contact_nodes(bottom_x);
+		append_contact_nodes(top_x);
+		append_contact_nodes(lambda_nodes);
+
+		std::sort(partition.begin(), partition.end());
+		partition.erase(
+			std::unique(partition.begin(), partition.end(),
+				[](double lhs, double rhs) { return std::fabs(lhs - rhs) < kContactEps; }),
+			partition.end());
+
+		std::vector<MortarElement> mortar_elements;
+		mortar_elements.reserve(partition.size() - 1);
+		for (size_t seg = 0; seg + 1 < partition.size(); ++seg)
+			mortar_elements.push_back({ partition[seg], partition[seg + 1] });
+
+		return mortar_elements;
+	}
+
 	double interpolate_trace_value(
 		const std::vector<Point>& basis_component,
 		const std::vector<size_t>& fem_side_nodes,
@@ -1006,10 +1042,8 @@ std::vector<double> solve_mortar_contact(
 	Matrix M1(n1, n_lambda);
 	Matrix M2(n2, n_lambda);
 
-	std::vector<MortarElement> mortar_elements;
-	mortar_elements.reserve(lambda_nodes.size() - 1);
-	for (size_t seg = 0; seg + 1 < lambda_nodes.size(); ++seg)
-		mortar_elements.push_back({ lambda_nodes[seg], lambda_nodes[seg + 1] });
+	std::vector<MortarElement> mortar_elements = build_mortar_elements(
+		bottom_x, top_x, lambda_nodes, contact_left, contact_right);
 
 	assemble_body_mortar_matrix(M1, basis_bottom, side_bottom, fem_bottom,
 		bottom_x, mortar_elements, lambda_nodes);

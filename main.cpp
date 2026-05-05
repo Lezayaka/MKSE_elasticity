@@ -334,8 +334,8 @@ void save_contact_normal_displacement(
 //        const double& x = p.x, & y = p.y;
 //
 //        //     x2      y2      x        y        c
-//        double a1 = 0, a3 = 0, a4 = 1, a5 = 0, a6 = 0;
-//        double b1 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+//        double a1 = 0, a3 = 0, a4 = -21, a5 = 0, a6 = 0;
+//        double b1 = 0, b3 = 0, b4 = 0, b5 = 13, b6 = 0;
 //
 //        double a2 = -(2 * mu * b1 + (4 * mu + 2 * lambda) * b3) / (lambda + mu),
 //            b2 = -(2 * mu * a3 + (4 * mu + 2 * lambda) * a1) / (lambda + mu);
@@ -352,7 +352,7 @@ vec_function ans(double nu, double E) {
     return [nu, E](const Point& p) {
         (void)nu;
         (void)E;
-        return Point{ 2 * p.x + 5 / p.x, 34 * p.y };
+        return Point{ 1 / p.x, 0 };
         };
 }
 /*vec_function ans(double nu, double E) {
@@ -419,9 +419,9 @@ int main() {
     auto ANS = ans(nu, E);
 
     // несовпадающие сетки
-    size_t col1 = 10, col2 = 3;
-    size_t n_bottom_x = col1, n_bottom_y = col1, n_top_x = col1, n_top_y = col1;
-    const size_t lambda_node_count = std::max(n_bottom_x, n_top_x);
+    size_t col1 = 18;
+    size_t n_bottom_x = col1 + 0, n_bottom_y = col1 + 0, n_top_x = col1 - 0, n_top_y = col1 - 0;
+    const size_t lambda_node_count = col1;
 
     FSEM bottom(E, nu, bottom_a, bottom_b, n_bottom_x, n_bottom_y);
     FSEM top(E, nu, top_a, top_b, n_top_x, n_top_y);
@@ -431,9 +431,22 @@ int main() {
 
     // Нижнее тело
     bottom.set_bc1('W', ANS); 
-
+    
     bottom.set_bc1('E', ANS);
     bottom.set_bc1('S', ANS);
+
+    /*top.construct_f_bc2({ 1, 0, 0, 0 }, {
+         [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        return Point{ 2 * mu, 0}; },
+
+          zero,
+
+        zero,
+
+        zero
+        });*/
 
     // u = {x, 0}
     /*bottom.construct_f_bc2({ 1, 0, 0, 1 }, {
@@ -482,14 +495,14 @@ int main() {
     top.set_bc1('N', ANS);
     top.set_bc1('E', ANS);
 
-    // u = {2r + 5 / r, 34z}
-    /*top.construct_f_bc2({ 0, 1, 0, 0 }, {
-         zero,
-
-          [&](const Point& p) {
+    // u = {1 / r, 0}
+    /*top.construct_f_bc2({ 1, 0, 0, 0 }, {
+         [&](const Point& p) {
         double mu = E / (2 * (1 + nu));
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{ 0, 2 * lambda * 2 + (lambda + 2 * mu) * 34}; },
+        return Point{ 2 * mu, 0}; },
+
+          zero,
 
         zero,
 
@@ -604,7 +617,7 @@ int main() {
     const size_t n_contact = std::min(bottom_contact_nodes.size(), top_contact_nodes.size());
 
     //std::cout << "\nContact surface values:\n";
-    std::cout << "id\t(r, z)\tu_bottom\tu_top\n";
+    std::cout << "id\t(r, z)\tans\tu_bottom\tu_top\n";
 
     for (size_t i = 0; i < n_contact; ++i) {
         const size_t bottom_contact_id = bottom_contact_nodes[i];
@@ -612,9 +625,10 @@ int main() {
 
         const Point bottom_contact_point = bottom.fem[bottom_contact_id];
         const Point top_contact_point = top.fem[top_contact_id];
-        //const Point exact_contact_value = ANS(bottom_contact_point);
+        const Point exact_contact_value = ANS(bottom_contact_point);
 
         std::cout << i << "\t" << bottom_contact_point
+			<< "\t" << exact_contact_value
             << "\t" << res_bottom[bottom_contact_id]
             << "\t" << res_top[top_contact_id]
             << "\n";
