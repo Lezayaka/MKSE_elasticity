@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 #include <numbers>
 #include <cmath>
 #include <math.h>
@@ -12,11 +12,12 @@
 #include "Headers.h"
 
 vec_function get_func(double nu, double E) {
+    (void)nu;
+    (void)E;
     return [nu, E](const Point& p) {
-        double mu = E / (2 * (1 + nu));
-        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        const double& x = p.x, & y = p.y;
-
+        (void)nu;
+        (void)E;
+        (void)p;
         return Point{ 0, 0 };
         };
 }
@@ -38,7 +39,8 @@ void save_displacement_component(
     for (size_t i = 0; i < n; ++i) {
         const Point& p = mesh[i];
         const Point& u = displacement_field[i];
-        const double value = (component == 'x') ? u.x : u.y;
+        const bool radial_component = (component == 'x' || component == 'r');
+        const double value = radial_component ? u.x : u.y;
         out << p.x << " " << p.y << " " << value << "\n";
     }
 }
@@ -46,17 +48,14 @@ void save_displacement_component(
 namespace {
 
 constexpr double kStressTraceEps = 1e-12;
+constexpr double kAxisEps = 1e-12;
 
 bool almost_equal(double lhs, double rhs, double eps = kStressTraceEps) {
     return std::fabs(lhs - rhs) < eps;
 }
 
-double signed_double_area(const Point& p1, const Point& p2, const Point& p3) {
-    return (p2.x - p1.x) * (p3.y - p1.y) - (p3.x - p1.x) * (p2.y - p1.y);
-}
-
 double point_component(const Point& p, char component) {
-    return (component == 'x') ? p.x : p.y;
+    return (component == 'x' || component == 'r') ? p.x : p.y;
 }
 
 double derivative_x(
@@ -126,17 +125,32 @@ double derivative_y(
     return (value(row + 1) - value(row - 1)) / dy;
 }
 
-std::vector<double> get_side_x_coordinates(const FSEM& body, char side) {
-    const auto side_nodes = body.get_side_fem_nodes(side);
-    std::vector<double> side_x(side_nodes.size());
+double axisymmetric_hoop_strain(
+    const FEM& mesh,
+    const std::vector<Point>& field,
+    size_t row,
+    size_t col) {
 
-    for (size_t i = 0; i < side_nodes.size(); ++i)
-        side_x[i] = body.fem[side_nodes[i]].x;
+    const size_t mx = mesh.xsize();
+    const size_t node_id = row * mx + col;
+    const double r = mesh[node_id].x;
+    if (std::fabs(r) < kAxisEps)
+        return derivative_x(mesh, field, row, col, 'r');
 
-    return side_x;
+    return field[node_id].x / r;
 }
 
-std::vector<double> recover_side_sigma_yy(
+std::vector<double> get_side_r_coordinates(const FSEM& body, char side) {
+    const auto side_nodes = body.get_side_fem_nodes(side);
+    std::vector<double> side_r(side_nodes.size());
+
+    for (size_t i = 0; i < side_nodes.size(); ++i)
+        side_r[i] = body.fem[side_nodes[i]].x;
+
+    return side_r;
+}
+
+std::vector<double> recover_side_sigma_zz(
     const FSEM& body,
     const std::vector<Point>& displacement_field,
     char side,
@@ -154,9 +168,10 @@ std::vector<double> recover_side_sigma_yy(
         const size_t row = node_id / mx;
         const size_t col = node_id % mx;
 
-        const double dux_dx = derivative_x(body.fem, displacement_field, row, col, 'x');
-        const double duy_dy = derivative_y(body.fem, displacement_field, row, col, 'y');
-        sigma[i] = lambda * dux_dx + (lambda + 2.0 * mu) * duy_dy;
+        const double dur_dr = derivative_x(body.fem, displacement_field, row, col, 'r');
+        const double duz_dz = derivative_y(body.fem, displacement_field, row, col, 'z');
+        const double hoop_strain = axisymmetric_hoop_strain(body.fem, displacement_field, row, col);
+        sigma[i] = lambda * (dur_dr + hoop_strain) + (lambda + 2.0 * mu) * duz_dz;
     }
 
     return sigma;
@@ -169,8 +184,8 @@ std::vector<double> recover_side_normal_displacement(
 
     const auto side_nodes = body.get_side_fem_nodes(side);
     const char component =
-        (side == 'N' || side == 'S') ? 'y' :
-        (side == 'W' || side == 'E') ? 'x' : '\0';
+        (side == 'N' || side == 'S') ? 'z' :
+        (side == 'W' || side == 'E') ? 'r' : '\0';
 
     std::vector<double> values(side_nodes.size(), 0.0);
     for (size_t i = 0; i < side_nodes.size(); ++i)
@@ -180,6 +195,8 @@ std::vector<double> recover_side_normal_displacement(
 }
 
 size_t find_trace_segment(const std::vector<double>& x_nodes, double x) {
+    if (x_nodes.size() < 2)
+        throw std::runtime_error("At least two trace nodes are required for interpolation.");
 
     if (x <= x_nodes.front() + kStressTraceEps)
         return 0;
@@ -191,7 +208,8 @@ size_t find_trace_segment(const std::vector<double>& x_nodes, double x) {
         if (x >= x_nodes[i] - kStressTraceEps && x <= x_nodes[i + 1] + kStressTraceEps)
             return i;
 
-    }
+    throw std::runtime_error("Trace point is outside the interpolation range.");
+}
 
 double interpolate_trace_value(
     const std::vector<double>& x_nodes,
@@ -214,11 +232,13 @@ double interpolate_trace_value(
 std::vector<double> build_contact_x_grid(
     const std::vector<double>& bottom_x,
     const std::vector<double>& top_x) {
-
+    if (bottom_x.empty() || top_x.empty())
         throw std::runtime_error("Empty contact boundary while preparing stress output.");
 
     const double contact_left = std::max(bottom_x.front(), top_x.front());
     const double contact_right = std::min(bottom_x.back(), top_x.back());
+    if (contact_left > contact_right + kStressTraceEps)
+        throw std::runtime_error("Bodies do not overlap along the contact trace.");
 
     std::vector<double> x_grid;
     x_grid.reserve(bottom_x.size() + top_x.size() + 2);
@@ -252,14 +272,14 @@ void save_contact_normal_stress(
     double E,
     double nu) {
 
-    const std::vector<double> bottom_x = get_side_x_coordinates(bottom_body, 'N');
-    const std::vector<double> top_x = get_side_x_coordinates(top_body, 'S');
+    const std::vector<double> bottom_x = get_side_r_coordinates(bottom_body, 'N');
+    const std::vector<double> top_x = get_side_r_coordinates(top_body, 'S');
     const std::vector<double> x_grid = build_contact_x_grid(bottom_x, top_x);
 
     const std::vector<double> sigma_bottom_nodes =
-        recover_side_sigma_yy(bottom_body, bottom_field, 'N', E, nu);
+        recover_side_sigma_zz(bottom_body, bottom_field, 'N', E, nu);
     const std::vector<double> sigma_top_nodes =
-        recover_side_sigma_yy(top_body, top_field, 'S', E, nu);
+        recover_side_sigma_zz(top_body, top_field, 'S', E, nu);
 
     std::ofstream out(file_name);
     if (!out.is_open()) {
@@ -282,8 +302,8 @@ void save_contact_normal_displacement(
     const FSEM& top_body,
     const std::vector<Point>& top_field) {
 
-    const std::vector<double> bottom_x = get_side_x_coordinates(bottom_body, 'N');
-    const std::vector<double> top_x = get_side_x_coordinates(top_body, 'S');
+    const std::vector<double> bottom_x = get_side_r_coordinates(bottom_body, 'N');
+    const std::vector<double> top_x = get_side_r_coordinates(top_body, 'S');
     const std::vector<double> x_grid = build_contact_x_grid(bottom_x, top_x);
 
     const std::vector<double> u_bottom_nodes =
@@ -307,42 +327,42 @@ void save_contact_normal_displacement(
 
 }
 
-// простые решения
-/*
+//vec_function ans(double nu, double E) {
+//    return [nu, E](const Point& p) {
+//        double mu = E / (2 * (1 + nu));
+//        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+//        const double& x = p.x, & y = p.y;
+//
+//        //     x2      y2      x        y        c
+//        double a1 = 0, a3 = 0, a4 = 1, a5 = 0, a6 = 0;
+//        double b1 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+//
+//        double a2 = -(2 * mu * b1 + (4 * mu + 2 * lambda) * b3) / (lambda + mu),
+//            b2 = -(2 * mu * a3 + (4 * mu + 2 * lambda) * a1) / (lambda + mu);
+//
+//        return Point{
+//            a1 * x * x + a2 * x * y + a3 * y * y + a4 * x + a5 * y + a6,
+//            b1 * x * x + b2 * x * y + b3 * y * y + b4 * x + b5 * y + b6
+//        };
+//        };
+//}
+
+// u = {2r + 5 / r, 34z}
 vec_function ans(double nu, double E) {
     return [nu, E](const Point& p) {
-        double mu = E / (2 * (1 + nu));
-        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        const double& x = p.x, & y = p.y;
-
-        //     x2      y2      x        y        c
-        double a1 = 0, a3 = 0, a4 = 1, a5 = 0, a6 = 0;
-        double b1 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-
-        double a2 = -(2 * mu * b1 + (4 * mu + 2 * lambda) * b3) / (lambda + mu),
-            b2 = -(2 * mu * a3 + (4 * mu + 2 * lambda) * a1) / (lambda + mu);
-
-        return Point{
-            a1 * x * x + a2 * x * y + a3 * y * y + a4 * x + a5 * y + a6,
-            b1 * x * x + b2 * x * y + b3 * y * y + b4 * x + b5 * y + b6
+        (void)nu;
+        (void)E;
+        return Point{ 2 * p.x + 5 / p.x, 34 * p.y };
         };
+}
+/*vec_function ans(double nu, double E) {
+    return [nu, E](const Point& p) {
+        (void)nu;
+        (void)E;
+        return Point{ 2 * p.x + 5 / p.x, 34 * p.y};
         };
 }*/
 
-// u = {e(x) cos(y - 0.5), - e(x) sin(y - 0.5)} 
-vec_function ans(double nu, double E) {
-    return [nu, E](const Point& p) {
-        double mu = E / (2 * (1 + nu));
-        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        const double& x = p.x, & y = p.y;
-
-        return Point{
-            exp(x) * cos(y - 0.5),
-
-            -exp(x) * sin(y - 0.5)
-        };
-        };
-}
 /*vec_function ans(double nu, double E) {
     return [nu, E](const Point& p) {
         double mu = E / (2 * (1 + nu));
@@ -393,17 +413,15 @@ int main() {
     double E = 21e+10;
     double nu = 0.3;
 
-    Point bottom_a = { 0, 0 }, bottom_b = { 1, 0.5 };
-    Point top_a = { 0, 0.5 }, top_b = { 1, 1 };
+    Point bottom_a = { 1, 0 }, bottom_b = { 3, 0.5 };
+    Point top_a = { 1, 0.5 }, top_b = { 3, 3 };
 
     auto ANS = ans(nu, E);
 
-    // совпадающие сетки
-    //size_t n_bottom_x = 15, n_bottom_y = 15, n_top_x = 15, n_top_y = 15;
-
     // несовпадающие сетки
-    size_t n_bottom_x = 6, n_bottom_y = 6, n_top_x = 10, n_top_y = 10;
-    const size_t lambda_node_count = 10;
+    size_t col1 = 10, col2 = 3;
+    size_t n_bottom_x = col1, n_bottom_y = col1, n_top_x = col1, n_top_y = col1;
+    const size_t lambda_node_count = std::max(n_bottom_x, n_top_x);
 
     FSEM bottom(E, nu, bottom_a, bottom_b, n_bottom_x, n_bottom_y);
     FSEM top(E, nu, top_a, top_b, n_top_x, n_top_y);
@@ -431,7 +449,7 @@ int main() {
          [&](const Point& p) {
         double mu = E / (2 * (1 + nu));
         double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
-        return Point{ 0, -lambda}; }
+        return Point{ 0, -lambda}; } // для (r, z) будет 2 * lambda
         });*/
 
     // u = {0, y}
@@ -463,6 +481,20 @@ int main() {
     top.set_bc1('W', ANS); 
     top.set_bc1('N', ANS);
     top.set_bc1('E', ANS);
+
+    // u = {2r + 5 / r, 34z}
+    /*top.construct_f_bc2({ 0, 1, 0, 0 }, {
+         zero,
+
+          [&](const Point& p) {
+        double mu = E / (2 * (1 + nu));
+        double lambda = E * nu / ((1 + nu) * (1 - 2 * nu));
+        return Point{ 0, 2 * lambda * 2 + (lambda + 2 * mu) * 34}; },
+
+        zero,
+
+        zero
+        });*/
 
     // u = {x, 0}
     /*top.construct_f_bc2({ 1, 1, 0, 0 }, {
@@ -572,7 +604,7 @@ int main() {
     const size_t n_contact = std::min(bottom_contact_nodes.size(), top_contact_nodes.size());
 
     //std::cout << "\nContact surface values:\n";
-    std::cout << "id\tpoint\tu_bottom\tu_top\tu_exact(one-body)\n";
+    std::cout << "id\t(r, z)\tu_bottom\tu_top\n";
 
     for (size_t i = 0; i < n_contact; ++i) {
         const size_t bottom_contact_id = bottom_contact_nodes[i];
@@ -601,10 +633,10 @@ int main() {
     //      //  std::fabs(res_top[i].y - ANS((top.fem)[i]).y) > 1e-7)
     //        std::cout << i << ": " << res_top[i] << '\t' << ANS((top.fem)[i]) << '\n';
 
-   /* save_displacement_component("results/bottom_displacement_x.txt", bottom.fem, res_bottom, 'x');
-    save_displacement_component("results/bottom_displacement_y.txt", bottom.fem, res_bottom, 'y');
-    save_displacement_component("results/top_displacement_x.txt", top.fem, res_top, 'x');
-    save_displacement_component("results/top_displacement_y.txt", top.fem, res_top, 'y');
+   save_displacement_component("results/bottom_displacement_r.txt", bottom.fem, res_bottom, 'r');
+    save_displacement_component("results/bottom_displacement_z.txt", bottom.fem, res_bottom, 'z');
+    save_displacement_component("results/top_displacement_r.txt", top.fem, res_top, 'r');
+    save_displacement_component("results/top_displacement_z.txt", top.fem, res_top, 'z');
     save_contact_normal_stress(
         "results/contact_normal_stress.txt",
         bottom,
@@ -618,7 +650,7 @@ int main() {
         bottom,
         res_bottom,
         top,
-        res_top);*/
+        res_top);
 
     // Расчет и вывод нормы ошибки
     double bottom_numerator = 0.0, bottom_denominator = 0.0;

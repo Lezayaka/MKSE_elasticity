@@ -1,4 +1,4 @@
-﻿#include "Headers.h"
+#include "Headers.h"
 #include <stdexcept>
 #include <cmath>
 
@@ -842,6 +842,7 @@ double mortar_shape_func(size_t i, const std::vector<double>& s, double cur) {
 namespace {
 
 	constexpr double kContactEps = 1e-12;
+	constexpr double kAxisymmetricTwoPi = 6.28318530717958647692;
 
 	size_t find_segment_index(const std::vector<double>& x_nodes, double x_mid) {
 		if (x_nodes.size() < 2)
@@ -926,32 +927,33 @@ namespace {
 		const std::vector<double>& lambda_nodes) {
 
 		for (const auto& mortar_element : mortar_elements) {
-			const double x_left = mortar_element.chi_left;
-			const double x_right = mortar_element.chi_right;
-			const double len = x_right - x_left;
+			const double r_left = mortar_element.chi_left;
+			const double r_right = mortar_element.chi_right;
+			const double len = r_right - r_left;
 			if (len <= kContactEps)
 				continue;
 
-			const double x_mid = 0.5 * (x_left + x_right);
+			const double r_mid = 0.5 * (r_left + r_right);
 			std::vector<double> lambda_values(lambda_nodes.size());
 			for (size_t l = 0; l < lambda_nodes.size(); ++l)
-				lambda_values[l] = mortar_shape_func(l, lambda_nodes, x_mid);
+				lambda_values[l] = mortar_shape_func(l, lambda_nodes, r_mid);
 
 			for (size_t node : side_nodes) {
 				const double N_left_x = interpolate_trace_value(
-					basis[2 * node], fem_side_nodes, side_x, x_left);
+					basis[2 * node], fem_side_nodes, side_x, r_left);
 				const double N_right_x = interpolate_trace_value(
-					basis[2 * node], fem_side_nodes, side_x, x_right);
+					basis[2 * node], fem_side_nodes, side_x, r_right);
 				const double N_left_y = interpolate_trace_value(
-					basis[2 * node + 1], fem_side_nodes, side_x, x_left);
+					basis[2 * node + 1], fem_side_nodes, side_x, r_left);
 				const double N_right_y = interpolate_trace_value(
-					basis[2 * node + 1], fem_side_nodes, side_x, x_right);
+					basis[2 * node + 1], fem_side_nodes, side_x, r_right);
 				const double N_val_x = 0.5 * (N_left_x + N_right_x);
 				const double N_val_y = 0.5 * (N_left_y + N_right_y);
+				const double weight = kAxisymmetricTwoPi * r_mid * len;
 
 				for (size_t l = 0; l < lambda_nodes.size(); ++l) {
-					M[2 * node][l] += N_val_x * lambda_values[l] * len;
-					M[2 * node + 1][l] += N_val_y * lambda_values[l] * len;
+					M[2 * node][l] += N_val_x * lambda_values[l] * weight;
+					M[2 * node + 1][l] += N_val_y * lambda_values[l] * weight;
 				}
 			}
 		}

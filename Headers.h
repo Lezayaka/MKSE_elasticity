@@ -5,6 +5,7 @@
 #include <algorithm>
 
 struct Point {
+	// In axisymmetric formulation: x stores r, y stores z.
 	double x, y;
 
 	friend std::ostream& operator<<(std::ostream& output, const Point& p);
@@ -23,7 +24,7 @@ using function = std::function<double(const Point&)>;
 // Вукции вида f(x, y) = {u, v}
 using vec_function = std::function<Point(const Point&)>;
 
-using lambda_func = std::function<int(int)>;
+using lambda_func = std::function<size_t(size_t)>;
 
 struct Triangle {
 	size_t a, b, c;
@@ -123,7 +124,7 @@ public:
 
 	void clear_AFu();
 
-	void bc2_side(lambda_func j, int start, int finish, double len, 
+	void bc2_side(lambda_func j, size_t start, size_t finish, double len, 
 		int side, bool prev_side, bool next_side,
 		const std::vector<vec_function>& g, std::vector<double>& p_vec);
 

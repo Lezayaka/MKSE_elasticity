@@ -1,6 +1,30 @@
 #include <iostream>
 #include <stdexcept>
+#include <array>
+#include <cmath>
 #include "Headers.h"
+
+namespace {
+
+	constexpr double kAxisymmetricTwoPi = 6.28318530717958647692;
+	constexpr double kAxisymmetricRadiusEps = 1e-14;
+
+	struct TriangleQuadraturePoint {
+		double weight;
+		std::array<double, 3> phi;
+	};
+
+	const std::array<TriangleQuadraturePoint, 3> kTriangleQuadrature = { {
+		{ 1.0 / 3.0, { 1.0 / 6.0, 1.0 / 6.0, 2.0 / 3.0 } },
+		{ 1.0 / 3.0, { 1.0 / 6.0, 2.0 / 3.0, 1.0 / 6.0 } },
+		{ 1.0 / 3.0, { 2.0 / 3.0, 1.0 / 6.0, 1.0 / 6.0 } }
+	} };
+
+	double signed_double_area(const Point& p1, const Point& p2, const Point& p3) {
+		return (p2.x - p1.x) * (p3.y - p1.y) - (p3.x - p1.x) * (p2.y - p1.y);
+	}
+
+}
 
 std::ostream& operator<<(std::ostream& output, const Point& p) {
 	output << "{ " << p.x << "; " << p.y << " }";
@@ -38,7 +62,7 @@ function get_y(vec_function a) {
 
 FEM::FEM(const Point& a, const Point& b, size_t n, size_t m)
 	: mx(m), ny(n), A(2 * n * m, 2 * n * m), F(2 * n * m),
-	left_down(a), right_up(b){ // почему так m и n ?????????
+	left_down(a), right_up(b){ // РїРѕС‡РµРјСѓ С‚Р°Рє m Рё n ?????????
 
 	double dx = (b.x - a.x) / (m - 1), dy = (b.y - a.y) / (n - 1);
 	u = std::vector<Point>(m * n, { NAN, NAN });
@@ -53,14 +77,14 @@ FEM::FEM(const Point& a, const Point& b, size_t n, size_t m)
 	triangles.resize(2 * (m - 1) * (n - 1));
 	for (size_t i = 0; i != triangles.size(); ++i) {
 		size_t x = i % (2 * (m - 1)), y = i / (2 * (m - 1));
-		if (x % 2 == 0) { // "верхний" треугольник
+		if (x % 2 == 0) { // "РІРµСЂС…РЅРёР№" С‚СЂРµСѓРіРѕР»СЊРЅРёРє
 			triangles[i] = {
 				(y * m) + x / 2,
 				((y + 1) * m) + x / 2,
 				((y + 1) * m) + x / 2 + 1
 			};
 		}
-		else { // "нижний" треугольник
+		else { // "РЅРёР¶РЅРёР№" С‚СЂРµСѓРіРѕР»СЊРЅРёРє
 			triangles[i] = {
 				(y * m) + x / 2,
 				((y + 1) * m) + x / 2 + 1,
@@ -103,7 +127,7 @@ void FEM::print_triangles() const {
 }
 
 void FEM::set_boundaries(char side, const vec_function& g) {
-	if (side == 'S') { // Нижняя граница
+	if (side == 'S') { // РќРёР¶РЅСЏСЏ РіСЂР°РЅРёС†Р°
 		for (size_t j = 0; j != mx; ++j) {
 			Point t = g(points[j]);
 			if(isnan(u[j].x))
@@ -112,7 +136,7 @@ void FEM::set_boundaries(char side, const vec_function& g) {
 				u[j].y = t.y;
 		}
 	}
-	else if (side == 'E') { // Правая граница
+	else if (side == 'E') { // РџСЂР°РІР°СЏ РіСЂР°РЅРёС†Р°
 		for (size_t i = 0; i != ny; ++i) {
 			Point t = g(points[mx - 1 + i * mx]);
 			if (isnan(u[mx - 1 + i * mx].x))
@@ -121,7 +145,7 @@ void FEM::set_boundaries(char side, const vec_function& g) {
 				u[mx - 1 + i * mx].y = t.y;
 		}
 	}
-	else if (side == 'N') { // Верхняя граница
+	else if (side == 'N') { // Р’РµСЂС…РЅСЏСЏ РіСЂР°РЅРёС†Р°
 		for (size_t j = 0; j != mx; ++j) {
 			Point t = g(points[mx * (ny - 1) + j]);
 			if (isnan(u[mx * (ny - 1) + j].x))
@@ -130,7 +154,7 @@ void FEM::set_boundaries(char side, const vec_function& g) {
 				u[mx * (ny - 1) + j].y = t.y;
 		}
 	}
-	else { // Левая граница
+	else { // Р›РµРІР°СЏ РіСЂР°РЅРёС†Р°
 		for (size_t i = 0; i != ny; ++i) {
 			Point t = g(points[i * mx]);
 			if (isnan(u[i * mx].x))
@@ -145,43 +169,57 @@ void FEM::construct_AF(double E, double nu, vec_function f) {
 	double lambda = (E * nu) / ((1 + nu) * (1 - 2 * nu));
 	double mu = E / (2 * (1 + nu));
 	Matrix C({
-		{lambda + 2 * mu, lambda, 0},
-		{lambda, lambda + 2 * mu, 0},
-		{0, 0, mu}
+		{lambda + 2 * mu, lambda, lambda, 0},
+		{lambda, lambda + 2 * mu, lambda, 0},
+		{lambda, lambda, lambda + 2 * mu, 0},
+		{0, 0, 0, mu}
 	});
 
 	for (size_t t = 0; t != tsize(); ++t) {
 		Triangle& T = triangles[t];
 		Point &p1 = points[T.a], &p2 = points[T.b], &p3 = points[T.c];
+		const double two_area = signed_double_area(p1, p2, p3);
+		const double area = 0.5 * std::fabs(two_area);
+
 		Matrix grad_phi({
-			{(p2.y - p3.y) / (2 * triangle_area), (p3.x - p2.x) / (2 * triangle_area)},
-			{(p3.y - p1.y) / (2 * triangle_area), (p1.x - p3.x) / (2 * triangle_area)},
-			{(p1.y - p2.y) / (2 * triangle_area), (p2.x - p1.x) / (2 * triangle_area)}
+			{(p2.y - p3.y) / two_area, (p3.x - p2.x) / two_area},
+			{(p3.y - p1.y) / two_area, (p1.x - p3.x) / two_area},
+			{(p1.y - p2.y) / two_area, (p2.x - p1.x) / two_area}
 		});
 
-		Matrix R(3, 6ull);
-		for (size_t p = 0; p < 3; ++p) {
-			R[0][2 * p] = grad_phi[p][0];
-			R[1][2 * p + 1] = grad_phi[p][1];
-
-			R[2][2 * p] = grad_phi[p][1];
-			R[2][2 * p + 1] = grad_phi[p][0];
-		}
-		
-		Matrix Ae = triangle_area * R.T().dot(C).dot(R);
-		
-
+		Matrix Ae(6ull);
 		std::vector<double> Fe(6, 0);
-		Point center = (p1 + p2 + p3) / 3;
+		for (const auto& qp : kTriangleQuadrature) {
+			Point q = qp.phi[0] * p1 + qp.phi[1] * p2 + qp.phi[2] * p3;
+			const double r_q = q.x;
 
-		Fe[0] = get_x(f)(center) * triangle_area / 3;
-		Fe[1] = get_y(f)(center) * triangle_area / 3;
+			Matrix B(4ull, 6ull);
+			for (size_t p = 0; p < 3; ++p) {
+				const double dphi_dr = grad_phi[p][0];
+				const double dphi_dz = grad_phi[p][1];
+				const double phi = qp.phi[p];
 
-		Fe[2] = get_x(f)(center) * triangle_area / 3;
-		Fe[3] = get_y(f)(center) * triangle_area / 3;
+				B[0][2 * p] = dphi_dr;
+				B[1][2 * p + 1] = dphi_dz;
+				B[2][2 * p] = phi / r_q;
+				B[3][2 * p] = dphi_dz;
+				B[3][2 * p + 1] = dphi_dr;
+			}
 
-		Fe[4] = get_x(f)(center) * triangle_area / 3;
-		Fe[5] = get_y(f)(center) * triangle_area / 3;
+			const Matrix stiffness_q = B.T().dot(C).dot(B);
+			const double weight = kAxisymmetricTwoPi * area * qp.weight * r_q;
+			for (size_t i = 0; i < 6; ++i) {
+				for (size_t j = 0; j < 6; ++j)
+					Ae[i][j] += weight * stiffness_q[i][j];
+			}
+
+			const Point body_force = f(q);
+			for (size_t p = 0; p < 3; ++p) {
+				const double shape_value = qp.phi[p];
+				Fe[2 * p] += weight * shape_value * body_force.x;
+				Fe[2 * p + 1] += weight * shape_value * body_force.y;
+			}
+		}
 		
 
 		auto p = [T](size_t i) {
@@ -255,15 +293,16 @@ void FEM::set_AF(const Matrix& A_new, const std::vector<double>& F_new) {
 	F = F_new;
 }
 
-void FEM::bc2_side(lambda_func j, int start, int finish, double len,
+void FEM::bc2_side(lambda_func j, size_t start, size_t finish, double len,
 	int side, bool prev_side, bool next_side, 
 	const std::vector<vec_function>& g, std::vector<double>& p_vec) {
-	for (int i = start; i < finish; ++i) { // индекс по границе как в мксэ
+	for (size_t i = start; i < finish; ++i) { // РёРЅРґРµРєСЃ РїРѕ РіСЂР°РЅРёС†Рµ РєР°Рє РІ РјРєСЃСЌ
+		const Point midpoint = (points[j(i)] + points[j(i + 1)]) / 2;
+		const double radius = midpoint.x;
 
-		Point integral = 0.5 * len *
-			g[side]((points[j(i)] + points[j(i + 1)]) / 2);
+		Point integral = 0.5 * kAxisymmetricTwoPi * radius * len * g[side](midpoint);
 
-		// текущий узел
+		// С‚РµРєСѓС‰РёР№ СѓР·РµР»
 		p_vec[2 * j(i)] += integral.x;
 		p_vec[2 * j(i) + 1] += integral.y;
 
@@ -284,21 +323,21 @@ void FEM::calculate_bc2(const std::vector<size_t>& pos,
 	double len_vert = (right_up.y - left_down.y) / (ny - 1),
 		len_hor = (right_up.x - left_down.x) / (mx - 1);
 
-	if (pos[0])  // слева ГУ 2 рода
-		bc2_side([&](int i) { return i * mx; }, 0, ny - 1, 
+	if (pos[0])  // СЃР»РµРІР° Р“РЈ 2 СЂРѕРґР°
+		bc2_side([&](size_t i) { return i * mx; }, 0, ny - 1, 
 			len_vert, 0, pos[3], pos[1], g, p_vec);
 
-	if (pos[1])  // сверху ГУ 2 рода
-		bc2_side([&](int i) { return (mx - 1) * (ny - 1) + i; }, 
+	if (pos[1])  // СЃРІРµСЂС…Сѓ Р“РЈ 2 СЂРѕРґР°
+		bc2_side([&](size_t i) { return (mx - 1) * (ny - 1) + i; }, 
 			ny - 1, ny + mx - 2, len_hor, 1, pos[0], pos[2], g, p_vec);
 
-	if (pos[2])  // справа ГУ 2 рода
-		bc2_side([&](int i) { return mx * (2 * ny + mx - i - 2) - 1; }, 
+	if (pos[2])  // СЃРїСЂР°РІР° Р“РЈ 2 СЂРѕРґР°
+		bc2_side([&](size_t i) { return mx * (2 * ny + mx - i - 2) - 1; }, 
 			ny + mx - 2, 2 * ny + mx - 3, len_vert, 
 			2, pos[1], pos[3], g, p_vec);
 	
-	if (pos[3])  // снизу ГУ 2 рода
-		bc2_side([&](int i) { return 1 + 2 * (ny + mx) - 5 - i; }, 
+	if (pos[3])  // СЃРЅРёР·Сѓ Р“РЈ 2 СЂРѕРґР°
+		bc2_side([&](size_t i) { return 1 + 2 * (ny + mx) - 5 - i; }, 
 			2 * ny + mx - 3, 2 * (ny + mx) - 4, len_hor, 
 			3, pos[2], pos[0], g, p_vec);
 
