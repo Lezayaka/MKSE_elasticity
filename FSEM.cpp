@@ -956,7 +956,6 @@ namespace {
 	void assemble_body_mortar_matrix(
 		Matrix& M,
 		const std::vector<std::vector<Point>>& basis,
-		const std::vector<size_t>& side_nodes,
 		const std::vector<size_t>& fem_side_nodes,
 		const std::vector<double>& side_x,
 		const std::vector<MortarElement>& mortar_elements,
@@ -974,7 +973,8 @@ namespace {
 			for (size_t l = 0; l < lambda_nodes.size(); ++l)
 				lambda_values[l] = mortar_shape_func(l, lambda_nodes, r_mid);
 
-			for (size_t node : side_nodes) {
+			const size_t body_node_count = basis.size() / 2;
+			for (size_t node = 0; node < body_node_count; ++node) {
 				const double N_left_x = interpolate_trace_value(
 					basis[2 * node], fem_side_nodes, side_x, r_left);
 				const double N_right_x = interpolate_trace_value(
@@ -1045,9 +1045,9 @@ std::vector<double> solve_mortar_contact(
 	std::vector<MortarElement> mortar_elements = build_mortar_elements(
 		bottom_x, top_x, lambda_nodes, contact_left, contact_right);
 
-	assemble_body_mortar_matrix(M1, basis_bottom, side_bottom, fem_bottom,
+	assemble_body_mortar_matrix(M1, basis_bottom, fem_bottom,
 		bottom_x, mortar_elements, lambda_nodes);
-	assemble_body_mortar_matrix(M2, basis_top, side_top, fem_top,
+	assemble_body_mortar_matrix(M2, basis_top, fem_top,
 		top_x, mortar_elements, lambda_nodes);
 
 	const size_t total = n1 + n2 + n_lambda;
@@ -1093,7 +1093,7 @@ std::vector<double> solve_mortar_contact(
 	for (const auto& [dof, value] : known_top)
 		apply_known_dof(n1 + dof, value);
 
-	return solveWithLU(Sys, rhs);
+	return solveGaussFullPivot(Sys, rhs);
 }
 
 std::vector<Point> FSEM::find_answer(const std::vector<double>& coefs, size_t start) {

@@ -58,18 +58,14 @@ double point_component(const Point& p, char component) {
     return (component == 'x' || component == 'r') ? p.x : p.y;
 }
 
+template <typename ValueAtColumn>
 double derivative_x(
     const FEM& mesh,
-    const std::vector<Point>& field,
     size_t row,
     size_t col,
-    char component) {
+    ValueAtColumn value) {
 
     const size_t mx = mesh.xsize();
-
-    auto value = [&](size_t c) {
-        return point_component(field[row * mx + c], component);
-    };
 
     if (mx == 2) {
         const double dx = mesh[row * mx + 1].x - mesh[row * mx].x;
@@ -88,6 +84,19 @@ double derivative_x(
 
     const double dx = mesh[row * mx + col + 1].x - mesh[row * mx + col - 1].x;
     return (value(col + 1) - value(col - 1)) / dx;
+}
+
+double derivative_x(
+    const FEM& mesh,
+    const std::vector<Point>& field,
+    size_t row,
+    size_t col,
+    char component) {
+
+    const size_t mx = mesh.xsize();
+    return derivative_x(mesh, row, col, [&](size_t c) {
+        return point_component(field[row * mx + c], component);
+    });
 }
 
 double derivative_y(
@@ -125,7 +134,7 @@ double derivative_y(
     return (value(row + 1) - value(row - 1)) / dy;
 }
 
-double axisymmetric_hoop_strain(
+double axisymmetric_radial_trace_strain(
     const FEM& mesh,
     const std::vector<Point>& field,
     size_t row,
@@ -134,10 +143,18 @@ double axisymmetric_hoop_strain(
     const size_t mx = mesh.xsize();
     const size_t node_id = row * mx + col;
     const double r = mesh[node_id].x;
-    if (std::fabs(r) < kAxisEps)
-        return derivative_x(mesh, field, row, col, 'r');
 
-    return field[node_id].x / r;
+    if (std::fabs(r) < kAxisEps)
+        return 2.0 * derivative_x(mesh, field, row, col, 'r');
+
+    // eps_rr + eps_tt = d(u_r)/dr + u_r/r = (d(r*u_r)/dr)/r.
+    // This avoids subtracting two large nearly equal terms for fields like u_r = C/r.
+    const double d_rur_dr = derivative_x(mesh, row, col, [&](size_t c) {
+        const size_t id = row * mx + c;
+        return mesh[id].x * field[id].x;
+    });
+
+    return d_rur_dr / r;
 }
 
 std::vector<double> get_side_r_coordinates(const FSEM& body, char side) {
@@ -168,10 +185,10 @@ std::vector<double> recover_side_sigma_zz(
         const size_t row = node_id / mx;
         const size_t col = node_id % mx;
 
-        const double dur_dr = derivative_x(body.fem, displacement_field, row, col, 'r');
+        const double radial_trace_strain =
+            axisymmetric_radial_trace_strain(body.fem, displacement_field, row, col);
         const double duz_dz = derivative_y(body.fem, displacement_field, row, col, 'z');
-        const double hoop_strain = axisymmetric_hoop_strain(body.fem, displacement_field, row, col);
-        sigma[i] = lambda * (dur_dr + hoop_strain) + (lambda + 2.0 * mu) * duz_dz;
+        sigma[i] = lambda * radial_trace_strain + (lambda + 2.0 * mu) * duz_dz;
     }
 
     return sigma;
@@ -352,7 +369,7 @@ vec_function ans(double nu, double E) {
     return [nu, E](const Point& p) {
         (void)nu;
         (void)E;
-        return Point{ 1 / p.x, 0 };
+        return Point{ 5 / p.x, 0 };
         };
 }
 /*vec_function ans(double nu, double E) {
@@ -420,8 +437,8 @@ int main() {
 
     // несовпадающие сетки
     size_t col1 = 18;
-    size_t n_bottom_x = col1 + 0, n_bottom_y = col1 + 0, n_top_x = col1 - 0, n_top_y = col1 - 0;
-    const size_t lambda_node_count = col1;
+    size_t n_bottom_x = col1 + 2, n_bottom_y = col1 + 2, n_top_x = col1 - 2, n_top_y = col1 - 2;
+    const size_t lambda_node_count = 18;
 
     FSEM bottom(E, nu, bottom_a, bottom_b, n_bottom_x, n_bottom_y);
     FSEM top(E, nu, top_a, top_b, n_top_x, n_top_y);
