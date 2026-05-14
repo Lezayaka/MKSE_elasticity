@@ -137,7 +137,13 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ContactSlaveNodes.h" />
+    <ClInclude Include="ContactUniformLambdaPartition.h" />
+    <ClInclude Include="ContactUniformUnionPartition.h" />
+    <ClInclude Include="FEMAxisymmetric.h" />
+    <ClInclude Include="FEMCartesian.h" />
     <ClInclude Include="Headers.h" />
+    <ClInclude Include="Tests.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

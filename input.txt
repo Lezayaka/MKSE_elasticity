@@ -1,0 +1,29 @@
+# coordinate: a/axisymmetric or c/cartesian
+coordinate = a
+
+# contact: s/slave, d/uniform_lambda, u/uniform_union
+contact = u
+
+# passive body is used only for contact=slave
+passive = top
+
+[axisymmetric_inverse_r]
+bottom_x = 5
+bottom_y = 5
+top_x = 9
+top_y = 9
+lambda = 5
+
+[axisymmetric_inverse_r]
+bottom_x = 5
+bottom_y = 5
+top_x = 9
+top_y = 9
+lambda = 7
+
+[axisymmetric_inverse_r]
+bottom_x = 5
+bottom_y = 5
+top_x = 9
+top_y = 9
+lambda = 9
