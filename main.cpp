@@ -92,14 +92,10 @@ size_t parse_size(const std::string& value, const std::string& key) {
 
 CoordinateSystem parse_coordinate_system(const std::string& value) {
 	const std::string v = normalize(value);
-	if (v == "a" || v == "axi" || v == "axisymmetric" || v == "axisym" ||
-		v == "r_z" || v == "осесимметричная" || v == "осесимметричной" ||
-		v == "осисиметричная" || v == "осисиметричной") {
+	if (v == "a" || v == "axi" || v == "axisymmetric") {
 		return CoordinateSystem::Axisymmetric;
 	}
-	if (v == "c" || v == "cartesian" || v == "cart" || v == "x_y" ||
-		v == "dsk" || v == "дск" || trim(value) == "ДСК" ||
-		v == "декартовая" || v == "декартовой") {
+	if (v == "c" || v == "cartesian" || v == "cart") {
 		return CoordinateSystem::Cartesian;
 	}
 	throw std::runtime_error("Unknown coordinate system: " + value);
@@ -107,16 +103,13 @@ CoordinateSystem parse_coordinate_system(const std::string& value) {
 
 ContactMethod parse_contact_method(const std::string& value) {
 	const std::string v = normalize(value);
-	if (v == "s" || v == "slave" || v == "slave_nodes" ||
-		v == "passive" || v == "узлы" || v == "пассивное") {
+	if (v == "s" || v == "slave" || v == "slave_nodes") {
 		return ContactMethod::SlaveNodes;
 	}
-	if (v == "d" || v == "lambda" || v == "uniform_lambda" ||
-		v == "uniform" || v == "dissertation" || v == "диссертация") {
+	if (v == "d" || v == "uniform_lambda" ) {
 		return ContactMethod::UniformLambdaPartition;
 	}
-	if (v == "u" || v == "all" || v == "union" || v == "uniform_union" ||
-		v == "po_vsem" || v == "по_всем") {
+	if (v == "u" || v == "uniform_union") {
 		return ContactMethod::UniformUnionPartition;
 	}
 	throw std::runtime_error("Unknown contact method: " + value);
@@ -124,9 +117,9 @@ ContactMethod parse_contact_method(const std::string& value) {
 
 ContactSlaveBody parse_slave_body(const std::string& value) {
 	const std::string v = normalize(value);
-	if (v == "bottom" || v == "b" || v == "lower" || v == "низ" || v == "нижнее")
+	if (v == "bottom" || v == "b")
 		return ContactSlaveBody::Bottom;
-	if (v == "top" || v == "t" || v == "upper" || v == "верх" || v == "верхнее")
+	if (v == "top" || v == "t")
 		return ContactSlaveBody::Top;
 	throw std::runtime_error("Unknown passive body: " + value);
 }
@@ -151,15 +144,15 @@ void add_test_name(InputConfig& config, const std::string& name) {
 void apply_override(TestRunConfig& run, const std::string& key, const std::string& value) {
 	const std::string k = normalize(key);
 	const std::string v = normalize(value);
-	if (k == "bottom_x" || k == "bottom_nx" || k == "n_bottom_x" || k == "bx")
+	if (k == "bottom_x")
 		run.bottom_x = parse_size(v, key);
-	else if (k == "bottom_y" || k == "bottom_ny" || k == "n_bottom_y" || k == "by")
+	else if (k == "bottom_y")
 		run.bottom_y = parse_size(v, key);
-	else if (k == "top_x" || k == "top_nx" || k == "n_top_x" || k == "tx")
+	else if (k == "top_x")
 		run.top_x = parse_size(v, key);
-	else if (k == "top_y" || k == "top_ny" || k == "n_top_y" || k == "ty")
+	else if (k == "top_y")
 		run.top_y = parse_size(v, key);
-	else if (k == "lambda" || k == "lambda_nodes" || k == "n_lambda" || k == "multipliers")
+	else if (k == "lambda")
 		run.lambda_nodes = parse_size(v, key);
 	else
 		throw std::runtime_error("Unknown per-test parameter: " + key);
@@ -169,17 +162,16 @@ void apply_key_value(InputConfig& config, TestRunConfig* current_test,
 	const std::string& key, const std::string& value) {
 
 	const std::string k = normalize(key);
-	if (k == "coordinate" || k == "coordinates" || k == "coord" ||
-		k == "system" || k == "система") {
+	if (k == "coordinate") {
 		config.coordinate_system = parse_coordinate_system(value);
 	}
-	else if (k == "contact" || k == "method" || k == "contact_method" || k == "контакт") {
+	else if (k == "contact") {
 		config.contact_method = parse_contact_method(value);
 	}
-	else if (k == "passive" || k == "slave" || k == "slave_body" || k == "passive_body") {
+	else if (k == "passive") {
 		config.slave_body = parse_slave_body(value);
 	}
-	else if (k == "tests" || k == "test" || k == "тесты") {
+	else if (k == "tests") {
 		for (const std::string& name : split_list(value))
 			add_test_name(config, name);
 	}
@@ -257,7 +249,7 @@ InputConfig read_input(const std::filesystem::path& file_name) {
 				const std::string name = trim(line.substr(1, line.size() - 2));
 				current_test = &append_test(config, name);
 			}
-			else if (starts_with(normalize(line), "test ") || starts_with(normalize(line), "тест ")) {
+			else if (starts_with(normalize(line), "test ")) {
 				parse_test_line(config, line);
 				current_test = nullptr;
 			}

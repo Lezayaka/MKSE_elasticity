@@ -29,7 +29,7 @@ struct TestCase {
 	std::array<char, 3> top_dirichlet_sides;
 };
 
-inline const std::map<std::string, TestCase> TESTS = {
+const std::map<std::string, TestCase> TESTS = {
 	{
 		"axisymmetric_inverse_r",
 		TestCase{
