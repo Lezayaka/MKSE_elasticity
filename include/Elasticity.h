@@ -1,5 +1,7 @@
 #pragma once
 
+// Core data structures and solvers for the finite superelement model.
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -145,15 +147,15 @@ public:
 
 	void set_boundaries(char side, const vec_function& g);
 
-	void construct_AF(double E, double nu, vec_function f);
+	void construct_AF(double E, double nu, vec_function body_force);
 	void apply_boundaries();
 	std::vector<Point> solve();
 
 	void clear_AFu();
 
 	void bc2_side(lambda_func j, size_t start, size_t finish, double len,
-		int side, bool prev_side, bool next_side,
-		const std::vector<vec_function>& g, std::vector<double>& p_vec);
+		int side, const std::vector<vec_function>& g,
+		std::vector<double>& p_vec);
 
 	void calculate_bc2(const std::vector<size_t>& pos,
 		const std::vector<vec_function>& g, std::vector<double>& p_vec);

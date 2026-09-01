@@ -1,10 +1,12 @@
 #pragma once
 
+// Contact discretization based on the passive body's trace nodes.
+
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
-#include "Headers.h"
+#include "Elasticity.h"
 
 namespace contact_slave_nodes {
 

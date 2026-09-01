@@ -1,4 +1,4 @@
-#include "Headers.h"
+#include "Elasticity.h"
 #include "ContactSlaveNodes.h"
 #include "ContactUniformLambdaPartition.h"
 #include "ContactUniformUnionPartition.h"
@@ -891,85 +891,6 @@ namespace {
 		}
 
 		throw std::runtime_error("Contact quadrature point is outside boundary segmentation.");
-	}
-
-	size_t count_contact_nodes(
-		const std::vector<double>& x_nodes,
-		double contact_left,
-		double contact_right) {
-
-		size_t count = 0;
-		for (double x : x_nodes)
-			if (x >= contact_left - kContactEps && x <= contact_right + kContactEps)
-				++count;
-
-		return count;
-	}
-
-	size_t default_lambda_node_count(
-		const std::vector<double>& bottom_x,
-		const std::vector<double>& top_x,
-		double contact_left,
-		double contact_right) {
-
-		return std::max<size_t>(
-			2,
-			std::max(
-				count_contact_nodes(bottom_x, contact_left, contact_right),
-				count_contact_nodes(top_x, contact_left, contact_right)));
-	}
-
-	// строит сетку общей контактной границы
-	std::vector<double> build_uniform_lambda_nodes(
-		double contact_left,
-		double contact_right,
-		size_t lambda_node_count) {
-
-		std::vector<double> lambda_nodes(lambda_node_count);
-		const double step = (contact_right - contact_left) / (lambda_node_count - 1);
-
-		for (size_t i = 0; i < lambda_node_count; ++i)
-			lambda_nodes[i] = contact_left + i * step;
-
-		lambda_nodes.front() = contact_left;
-		lambda_nodes.back() = contact_right;
-		return lambda_nodes;
-	}
-
-	std::vector<MortarElement> build_mortar_elements(
-		const std::vector<double>& bottom_x,
-		const std::vector<double>& top_x,
-		const std::vector<double>& lambda_nodes,
-		double contact_left,
-		double contact_right) {
-
-		std::vector<double> partition;
-		partition.reserve(bottom_x.size() + top_x.size() + lambda_nodes.size() + 2);
-		partition.push_back(contact_left);
-		partition.push_back(contact_right);
-
-		auto append_contact_nodes = [&](const std::vector<double>& nodes) {
-			for (double x : nodes)
-				if (x >= contact_left - kContactEps && x <= contact_right + kContactEps)
-					partition.push_back(x);
-		};
-
-		append_contact_nodes(bottom_x);
-		append_contact_nodes(top_x);
-		append_contact_nodes(lambda_nodes);
-
-		std::sort(partition.begin(), partition.end());
-		partition.erase(
-			std::unique(partition.begin(), partition.end(),
-				[](double lhs, double rhs) { return std::fabs(lhs - rhs) < kContactEps; }),
-			partition.end());
-
-		std::vector<MortarElement> mortar_elements;
-		mortar_elements.reserve(partition.size() - 1);
-		for (size_t seg = 0; seg + 1 < partition.size(); ++seg)
-			mortar_elements.push_back({ partition[seg], partition[seg + 1] });
-
-		return mortar_elements;
 	}
 
 	double interpolate_trace_value(

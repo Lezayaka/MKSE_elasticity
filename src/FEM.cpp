@@ -2,7 +2,7 @@
 #include <stdexcept>
 #include <array>
 #include <cmath>
-#include "Headers.h"
+#include "Elasticity.h"
 #include "FEMAxisymmetric.h"
 #include "FEMCartesian.h"
 
@@ -168,12 +168,12 @@ void FEM::set_boundaries(char side, const vec_function& g) {
 	}
 }
 
-void FEM::construct_AF(double E, double nu, vec_function f) {
+void FEM::construct_AF(double E, double nu, vec_function body_force) {
 	if (coordinate_system == CoordinateSystem::Cartesian) {
-		fem_cartesian::assemble(A, F, points, triangles, triangle_area, E, nu, f);
+		fem_cartesian::assemble(A, F, points, triangles, triangle_area, E, nu, body_force);
 	}
 	else {
-		fem_axisymmetric::assemble(A, F, points, triangles, triangle_area, E, nu, f);
+		fem_axisymmetric::assemble(A, F, points, triangles, triangle_area, E, nu, body_force);
 	}
 }
 
@@ -196,12 +196,12 @@ void FEM::apply_boundaries() {
 
 std::vector<Point> FEM::solve() {
 	auto [L, U] = LU_decomposition(A);
-	std::vector<double> u = solveLU(L, U, F);
+	std::vector<double> dofs = solveLU(L, U, F);
 
 	std::vector<Point> res(psize());
 	for (size_t i = 0; i < psize(); ++i) {
-		res[i].x = u[2 * i];
-		res[i].y = u[2 * i + 1];
+		res[i].x = dofs[2 * i];
+		res[i].y = dofs[2 * i + 1];
 	}
 
 	clear_AFu();
@@ -229,8 +229,8 @@ void FEM::set_AF(const Matrix& A_new, const std::vector<double>& F_new) {
 }
 
 void FEM::bc2_side(lambda_func j, size_t start, size_t finish, double len,
-	int side, bool prev_side, bool next_side, 
-	const std::vector<vec_function>& g, std::vector<double>& p_vec) {
+	int side, const std::vector<vec_function>& g,
+	std::vector<double>& p_vec) {
 	for (size_t i = start; i < finish; ++i) { // индекс по границе как в мксэ
 		const Point midpoint = (points[j(i)] + points[j(i + 1)]) / 2;
 		const double weight = (coordinate_system == CoordinateSystem::Cartesian)
@@ -244,12 +244,6 @@ void FEM::bc2_side(lambda_func j, size_t start, size_t finish, double len,
 
 		p_vec[2 * j(i + 1)] += integral.x;
 		p_vec[2 * j(i + 1) + 1] += integral.y;
-		
-		/*if (!prev_side)
-			p_vec[2 * j(start)] = p_vec[2 * j(start) + 1] = 0;
-
-		if (!next_side)
-			p_vec[2 * j(finish)] = p_vec[2 * j(finish) + 1] = 0;*/
 	}
 }
 
@@ -260,21 +254,21 @@ void FEM::calculate_bc2(const std::vector<size_t>& pos,
 		len_hor = (right_up.x - left_down.x) / (mx - 1);
 
 	if (pos[0])  // слева ГУ 2 рода
-		bc2_side([&](size_t i) { return i * mx; }, 0, ny - 1, 
-			len_vert, 0, pos[3], pos[1], g, p_vec);
+		bc2_side([&](size_t i) { return i * mx; }, 0, ny - 1,
+			len_vert, 0, g, p_vec);
 
 	if (pos[1])  // сверху ГУ 2 рода
-		bc2_side([&](size_t i) { return (mx - 1) * (ny - 1) + i; }, 
-			ny - 1, ny + mx - 2, len_hor, 1, pos[0], pos[2], g, p_vec);
+		bc2_side([&](size_t i) { return (mx - 1) * (ny - 1) + i; },
+			ny - 1, ny + mx - 2, len_hor, 1, g, p_vec);
 
 	if (pos[2])  // справа ГУ 2 рода
-		bc2_side([&](size_t i) { return mx * (2 * ny + mx - i - 2) - 1; }, 
-			ny + mx - 2, 2 * ny + mx - 3, len_vert, 
-			2, pos[1], pos[3], g, p_vec);
+		bc2_side([&](size_t i) { return mx * (2 * ny + mx - i - 2) - 1; },
+			ny + mx - 2, 2 * ny + mx - 3, len_vert,
+			2, g, p_vec);
 	
 	if (pos[3])  // снизу ГУ 2 рода
-		bc2_side([&](size_t i) { return 1 + 2 * (ny + mx) - 5 - i; }, 
-			2 * ny + mx - 3, 2 * (ny + mx) - 4, len_hor, 
-			3, pos[2], pos[0], g, p_vec);
+		bc2_side([&](size_t i) { return 1 + 2 * (ny + mx) - 5 - i; },
+			2 * ny + mx - 3, 2 * (ny + mx) - 4, len_hor,
+			3, g, p_vec);
 
 }

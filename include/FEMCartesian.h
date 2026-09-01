@@ -1,6 +1,8 @@
 #pragma once
 
-#include "Headers.h"
+// Cartesian finite-element integration kernels.
+
+#include "Elasticity.h"
 
 namespace fem_cartesian {
 

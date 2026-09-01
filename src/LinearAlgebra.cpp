@@ -1,4 +1,6 @@
-#include "Headers.h"
+#include "Elasticity.h"
+
+#include <stdexcept>
 
 Matrix::Matrix(size_t n, double a) {
 	matrix = std::vector<std::vector<double>>(n, std::vector<double>(n, a));
@@ -185,6 +187,9 @@ std::vector<double> solveGaussFullPivot(const Matrix& A,
 				}
 			}
 		}
+
+		if (pivot_abs < eps)
+			throw std::runtime_error("Cannot solve a singular linear system.");
 
 		if (pivot_row != k) {
 			std::swap(M[pivot_row], M[k]);

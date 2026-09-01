@@ -1,5 +1,5 @@
-#include "Headers.h"
-#include "Tests.h"
+#include "Elasticity.h"
+#include "TestCases.h"
 #include "ContactSlaveNodes.h"
 #include "ContactUniformLambdaPartition.h"
 #include "ContactUniformUnionPartition.h"
@@ -226,7 +226,8 @@ InputConfig read_input(const std::filesystem::path& file_name) {
 	InputConfig config;
 	std::ifstream in(file_name);
 	if (!in.is_open()) {
-		std::cout << "input.txt was not found; all tests will run with default parameters.\n";
+		std::cout << file_name.string()
+			<< " was not found; all tests will run with default parameters.\n";
 		add_test_name(config, "all");
 		return config;
 	}
@@ -258,7 +259,8 @@ InputConfig read_input(const std::filesystem::path& file_name) {
 			}
 		}
 		catch (const std::exception& e) {
-			throw std::runtime_error("input.txt:" + std::to_string(line_number) + ": " + e.what());
+			throw std::runtime_error(file_name.string() + ":" +
+				std::to_string(line_number) + ": " + e.what());
 		}
 	}
 
@@ -741,9 +743,15 @@ void run_test(const TestRunConfig& run, const InputConfig& config) {
 
 } // namespace
 
-int main() {
+int main(int argc, char* argv[]) {
 	try {
-		const InputConfig config = read_input("input.txt");
+		if (argc > 2) {
+			std::cerr << "Usage: mkse-elasticity [input-file]\n";
+			return 2;
+		}
+
+		const std::filesystem::path input_file = argc == 2 ? argv[1] : "input.txt";
+		const InputConfig config = read_input(input_file);
 		std::cout << "Coordinate system: " << to_string(config.coordinate_system) << "\n";
 		std::cout << "Contact method: " << to_string(config.contact_method) << "\n";
 		if (config.contact_method == ContactMethod::SlaveNodes)

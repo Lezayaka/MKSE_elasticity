@@ -1,9 +1,11 @@
 #pragma once
 
+// Contact discretization on an independent uniform multiplier grid.
+
 #include <algorithm>
 #include <cmath>
 
-#include "Headers.h"
+#include "Elasticity.h"
 
 namespace contact_uniform_lambda_partition {
 

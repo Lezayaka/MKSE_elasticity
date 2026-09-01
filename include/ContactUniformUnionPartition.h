@@ -1,9 +1,11 @@
 #pragma once
 
+// Contact discretization on a uniform refinement of the combined traces.
+
 #include <algorithm>
 #include <cmath>
 
-#include "Headers.h"
+#include "Elasticity.h"
 #include "ContactUniformLambdaPartition.h"
 
 namespace contact_uniform_union_partition {

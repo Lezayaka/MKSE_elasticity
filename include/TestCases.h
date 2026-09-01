@@ -1,12 +1,14 @@
 #pragma once
 
+// Manufactured solutions used to validate the numerical model.
+
 #include <array>
 #include <cmath>
 #include <functional>
 #include <map>
 #include <string>
 
-#include "Headers.h"
+#include "Elasticity.h"
 
 struct MeshSize {
 	size_t bottom_x;

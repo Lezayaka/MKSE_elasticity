@@ -1,9 +1,11 @@
 #pragma once
 
+// Axisymmetric finite-element integration kernels.
+
 #include <array>
 #include <cmath>
 
-#include "Headers.h"
+#include "Elasticity.h"
 
 namespace fem_axisymmetric {
 
